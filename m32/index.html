@@ -1,0 +1,4537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>M32 Configurator — Config Editor</title>
+<link rel="icon" href="../icons/m32icon.png">
+<link rel="stylesheet" href="../common-styles.css">
+
+<style>
+:root {
+  --bg: #101216;
+  --panel: #191c22;
+  --panel2: #22262e;
+  --border: #343943;
+  --text: #f1f3f5;
+  --muted: #9299a5;
+  --accent: #62a5ff;
+  --purple: #c993ff;
+  --radius: 12px;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+input,
+textarea {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+  color: inherit;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.app {
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.app-header {
+  display: block;
+  text-align: center;
+  margin: 0 0 50px;
+}
+
+.app-header h1 {
+  font-size: 2.4rem;
+  font-weight: 200;
+  letter-spacing: 0;
+  margin: -15px 0 5px;
+}
+
+.page-description {
+  color: var(--muted);
+  font-size: 1.15rem;
+  margin: 0;
+}
+
+.btn {
+  border: 1px solid var(--border);
+  background: var(--panel2);
+  border-radius: 8px;
+  padding: 10px 14px;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.btn.copied {
+  border-color: #35c759;
+  color: #35c759;
+}
+
+.btn:hover {
+  background: #303641;
+}
+
+.btn.primary {
+  background: #347bd2;
+  border-color: #347bd2;
+  color: white;
+}
+
+.btn.primary:hover {
+  background: #448de6;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  margin-bottom: 18px;
+}
+
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.section-heading h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.section-heading small {
+  color: var(--muted);
+}
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.channel-grid-label {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin: 22px 0 9px;
+}
+
+.channel-grid-label:first-child {
+  margin-top: 0;
+}
+
+.channel-row {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.channel-row + .channel-row {
+  margin-top: 20px;
+}
+
+.channel {
+  min-width: 0;
+  height: 124px;
+
+  --channel-color: #777f8b;
+
+  background:
+    linear-gradient(
+      rgba(255,255,255,0.025),
+      rgba(255,255,255,0.025)
+    ),
+    #252a33;
+
+  border: 1px solid #3c424d;
+  border-radius: 9px;
+  padding: 9px 5px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+
+  position: relative;
+  overflow: hidden;
+
+  transition:
+    background 0.12s,
+    border-color 0.12s,
+    box-shadow 0.12s,
+    opacity 0.12s;
+}
+
+.channel.is-on {
+  background:
+    linear-gradient(
+      rgba(255,255,255,0.035),
+      rgba(255,255,255,0.035)
+    ),
+    color-mix(
+      in srgb,
+      var(--channel-color) 25%,
+      #171a20
+    );
+
+  border-color:
+    color-mix(
+      in srgb,
+      var(--channel-color) 78%,
+      white 22%
+    );
+
+  box-shadow:
+    inset 0 0 0 1px
+      color-mix(
+        in srgb,
+        var(--channel-color) 60%,
+        transparent
+      ),
+    0 0 15px
+      color-mix(
+        in srgb,
+        var(--channel-color) 15%,
+        transparent
+      );
+
+  opacity: 1;
+}
+
+.channel.is-off {
+  background: #282a30;
+  border-color: #4b4f58;
+  opacity: 0.66;
+}
+
+.channel:hover {
+  border-color: #858e9c;
+  opacity: 1;
+}
+
+.channel.is-on:hover {
+  border-color:
+    color-mix(
+      in srgb,
+      var(--channel-color) 80%,
+      white
+    );
+}
+
+.channel.selected,
+.channel.multi-selected {
+  background:
+    linear-gradient(
+      rgba(255,255,255,0.12),
+      rgba(255,255,255,0.12)
+    ),
+    #353a43;
+
+  opacity: 1;
+
+  z-index: 2;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,0.08),
+    0 4px 14px rgba(0,0,0,0.22);
+}
+
+.channel.selected.is-on,
+.channel.multi-selected.is-on {
+  background:
+    linear-gradient(
+      rgba(255,255,255,0.12),
+      rgba(255,255,255,0.12)
+    ),
+    color-mix(
+      in srgb,
+      var(--channel-color) 25%,
+      #171a20
+    );
+
+  opacity: 1;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,0.10),
+    0 4px 14px rgba(0,0,0,0.24);
+}
+
+.channel:focus-visible {
+  outline: none;
+}
+
+.channel-number {
+  font-size: 12px;
+  font-weight: 750;
+  color: #c5ccd6;
+  font-variant-numeric: tabular-nums;
+}
+
+.channel.blackout {
+  opacity: 0.5;
+}
+
+.channel.blackout .channel-name {
+  display: none;
+}
+
+.channel-icon {
+  width: 44px;
+  height: 49px;
+  object-fit: contain;
+  image-rendering: auto;
+  filter: invert(1);
+  mix-blend-mode: screen;
+}
+
+.channel-name {
+  width: 100%;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+  color: #e6e9ee;
+}
+
+.channel-status {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+
+  width: 12px;
+  height: 12px;
+
+  border-radius: 50%;
+
+  cursor: pointer;
+
+  border: 1px solid rgba(255,255,255,0.75);
+}
+
+.channel-status:not(.off) {
+  background: #35c759;
+
+  box-shadow:
+    0 0 10px rgba(53,199,89,0.65);
+}
+
+.channel-status.off {
+  background: #e34b50;
+
+  border-color: rgba(255,255,255,0.72);
+
+  box-shadow:
+    0 0 8px rgba(227,75,80,0.35);
+}
+
+.channel-state-label {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  border-radius: 4px;
+  padding: 3px 7px;
+
+  background: #245f38;
+  color: #7ff0a1;
+}
+
+.channel-state-label.off {
+  background: #632d31;
+  color: #ff9297;
+}
+
+.channel-color {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 5px;
+}
+
+.editor-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 20px;
+}
+
+.editor-main {
+  min-width: 0;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-bottom: 17px;
+}
+
+.field label {
+  color: #b9c0cb;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+input[type="text"],
+input[type="number"] {
+  width: 100%;
+  background: #111419;
+  border: 1px solid #3b414c;
+  color: var(--text);
+  border-radius: 8px;
+  padding: 11px 12px;
+  min-width: 0;
+}
+
+input:disabled {
+  opacity: 0.45;
+}
+
+.color-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.color-option {
+  border: 1px solid #444b56;
+  background: #242932;
+  border-radius: 8px;
+  padding: 9px 5px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+
+  min-width: 0;
+  min-height: 69px;
+}
+
+.color-option:hover {
+  background: #303641;
+  border-color: #707986;
+}
+
+.color-option.active {
+  border-color: white;
+  background: #39414e;
+
+  box-shadow:
+    0 0 0 1px white,
+    0 0 10px rgba(255,255,255,0.08);
+}
+
+.swatch {
+  width: 27px;
+  height: 27px;
+  border-radius: 7px;
+  border: 1px solid rgba(255,255,255,0.27);
+}
+
+.color-option span:last-child {
+  font-size: 10px;
+  text-align: center;
+}
+
+.icon-search {
+  margin-bottom: 10px;
+}
+
+.icon-picker {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 6px;
+
+  height: auto;
+  max-height: none;
+  overflow: visible;
+
+  padding: 3px;
+}
+
+.icon-option {
+  min-height: 78px;
+
+  background: #222730;
+  border: 1px solid #3a414c;
+  border-radius: 7px;
+
+  padding: 7px 3px;
+
+  min-width: 0;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  gap: 5px;
+}
+
+.icon-option:hover {
+  background: #303742;
+  border-color: #737c89;
+}
+
+.icon-option.active {
+  background: #34475e;
+  border-color: var(--accent);
+
+  box-shadow:
+    inset 0 0 0 1px var(--accent);
+}
+
+.icon-option img {
+  width: 42px;
+  height: 48px;
+  object-fit: contain;
+
+  filter: invert(1);
+  mix-blend-mode: screen;
+}
+
+.icon-option span {
+  font-size: 10px;
+  color: #bdc4ce;
+}
+
+.preview {
+  background: #111419;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+
+  padding: 18px;
+
+  position: sticky;
+  top: 15px;
+
+  height: fit-content;
+}
+
+.preview h3 {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0 0 15px;
+}
+
+.preview-strip {
+  border-radius: 9px;
+  background: #111419;
+  overflow: hidden;
+  text-align: center;
+}
+
+.preview-color {
+  height: 9px;
+}
+
+.preview-icon {
+  padding: 22px 0 10px;
+}
+
+.preview-icon img {
+  width: 82px;
+  height: 82px;
+
+  object-fit: contain;
+
+  filter: invert(1);
+  mix-blend-mode: screen;
+}
+
+.preview-name {
+  font-weight: 700;
+  font-size: 15px;
+  padding: 8px;
+
+  overflow-wrap: anywhere;
+}
+
+.preview-channel {
+  color: var(--muted);
+  padding: 0 8px 15px;
+  font-size: 11px;
+}
+
+.preview-state {
+  display: inline-block;
+
+  margin: 0 0 15px;
+  padding: 6px 15px;
+
+  border-radius: 20px;
+
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.preview-state.on {
+  background: #245f38;
+  color: #7ff0a1;
+}
+
+.preview-state.off {
+  background: #632d31;
+  color: #ff9297;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.output {
+  width: 100%;
+  min-height: 450px;
+
+  resize: vertical;
+
+  background: #0b0e12;
+  color: #b8e3c5;
+
+  border: 1px solid #343c46;
+  border-radius: 9px;
+
+  padding: 16px;
+
+  font:
+    12px/1.65
+    "SFMono-Regular",
+    Consolas,
+    monospace;
+
+  tab-size: 4;
+
+  white-space: pre;
+  overflow: auto;
+}
+
+.output-toolbar {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  flex-wrap: wrap;
+
+  margin-bottom: 12px;
+}
+
+.output-status {
+  color: var(--muted);
+  font-size: 12px;
+  margin-left: auto;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(0,0,0,0.62);
+  backdrop-filter: blur(4px);
+}
+
+.modal-backdrop[hidden] {
+  display: none;
+}
+
+.modal-card {
+  width: min(100%, 720px);
+  max-height: min(88vh, 820px);
+  overflow: auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: 0 18px 60px rgba(0,0,0,0.45);
+}
+
+.modal-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.modal-heading h2 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.modal-close {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel2);
+  color: var(--text);
+  font-size: 24px;
+  line-height: 1;
+}
+
+.hotkey-list {
+  display: grid;
+  gap: 8px;
+}
+
+.hotkey-list > div {
+  display: grid;
+  grid-template-columns: 145px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  background: #111419;
+  color: #d9dee6;
+}
+
+.hotkey-list > div > span {
+  min-width: 0;
+}
+
+kbd {
+  display: inline-block;
+  width: fit-content;
+  padding: 3px 7px;
+  border: 1px solid #4a515d;
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: #252a33;
+  color: #f1f3f5;
+  font: 600 11px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.hotkey-list em {
+  grid-column: 1 / -1;
+  display: none;
+}
+
+.modal-footnote,
+.modal-description {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.modal-description {
+  margin: 0 0 12px;
+}
+
+.import-script-input {
+  width: 100%;
+  min-height: 360px;
+  resize: vertical;
+  background: #0b0e12;
+  color: #b8e3c5;
+  border: 1px solid #343c46;
+  border-radius: 9px;
+  padding: 14px;
+  font: 12px/1.55 "SFMono-Regular", Consolas, monospace;
+  white-space: pre;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  margin-top: 12px;
+}
+
+.channel-hotkey-hint {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.channel-hotkey-hint strong {
+  color: #dfe5ed;
+}
+
+.footer {
+  color: #777f8b;
+  text-align: center;
+  font-size: 11px;
+  padding: 10px;
+}
+
+@media (max-width: 850px) {
+
+  .app {
+    padding: 12px;
+  }
+
+  .editor-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .preview {
+    position: static;
+  }
+
+  .channel {
+    height: 105px;
+  }
+
+  .channel-icon {
+    width: 36px;
+    height: 42px;
+  }
+
+}
+
+@media (max-width: 520px) {
+
+  .channel-row {
+    gap: 4px;
+  }
+
+  .channel {
+    height: 88px;
+    padding: 5px 2px;
+  }
+
+  .channel-name {
+    font-size: 9px;
+  }
+
+  .channel-icon {
+    width: 28px;
+    height: 33px;
+  }
+
+  .color-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .icon-picker {
+    grid-template-columns: repeat(6, 1fr);
+  }
+
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hotkey-list > div {
+    grid-template-columns: 115px minmax(0, 1fr);
+  }
+
+  .app-header h1 {
+    font-size: 2rem;
+  }
+
+}
+</style>
+</head>
+
+<body>
+
+<div id="shared-header"></div>
+<div id="shared-menu"></div>
+
+<div class="app">
+
+<div class="app-header">
+  <h1>M32 Configurator</h1>
+  <p class="page-description">Custom Applescript generator – for use in QLab</p>
+</div>
+
+<section class="panel">
+
+  <div class="section-heading">
+
+    <h2>
+      Channel Overview
+    </h2>
+
+    <div class="toolbar">
+
+      <button
+        class="btn"
+        id="allOn"
+      >
+        All ON
+      </button>
+
+      <button
+        class="btn"
+        id="allOff"
+      >
+        All OFF
+      </button>
+
+    </div>
+
+  </div>
+
+  <div class="channel-grid-label">
+    Inputs 01–16
+  </div>
+
+  <div
+    class="channel-row"
+    id="row1"
+  ></div>
+
+  <div class="channel-grid-label">
+    Inputs 17–32
+  </div>
+
+  <div
+    class="channel-row"
+    id="row2"
+  ></div>
+
+</section>
+
+<section
+  class="panel"
+  id="channelEditorPanel"
+>
+
+  <div class="section-heading">
+
+    <h2 id="editorTitle">
+      Channel 01 Configuration
+    </h2>
+
+    <small id="selectionDescription">
+      One channel selected
+    </small>
+
+  </div>
+
+  <div class="editor-layout">
+
+    <div class="editor-main">
+
+      <div class="field">
+
+        <label for="channelName">
+          Channel Name
+        </label>
+
+        <input
+          type="text"
+          id="channelName"
+          maxlength="32"
+          placeholder="Enter channel name"
+        >
+
+      </div>
+
+      <div class="field">
+
+        <label>
+          Channel Color
+        </label>
+
+        <div
+          class="color-grid"
+          id="colorGrid"
+        ></div>
+
+      </div>
+
+      <div class="field">
+
+        <label>
+          Channel Icon
+        </label>
+
+        <input
+          type="text"
+          class="icon-search"
+          id="iconSearch"
+          placeholder="Search icons..."
+        >
+
+        <div
+          class="icon-picker"
+          id="iconPicker"
+        ></div>
+
+      </div>
+
+      <div
+        class="channel-hotkey-hint"
+        style="margin-top:18px"
+      >
+        Channel settings: <strong>⌘C</strong> copy · <strong>⌘V</strong> paste to selected channel(s)
+      </div>
+
+    </div>
+
+    <aside class="preview">
+
+      <h3>
+        M32 CHANNEL PREVIEW
+      </h3>
+
+      <div class="preview-strip">
+
+        <div
+          class="preview-color"
+          id="previewColor"
+        ></div>
+
+        <div class="preview-icon">
+
+          <img
+            id="previewIcon"
+            src="icons/icon-01.bmp"
+            alt="Selected channel icon"
+          >
+
+        </div>
+
+        <div
+          class="preview-name"
+          id="previewName"
+        >
+          Channel 01
+        </div>
+
+        <div
+          class="preview-channel"
+          id="previewNumber"
+        >
+          INPUT 01
+        </div>
+
+        <div
+          class="preview-state on"
+          id="previewState"
+        >
+          ON
+        </div>
+
+      </div>
+
+    </aside>
+
+  </div>
+
+</section>
+
+<section class="panel">
+
+  <div class="section-heading">
+
+    <h2>
+      QLab Show Settings
+    </h2>
+
+    <small>
+      All channel configuration parameters are always generated
+    </small>
+
+  </div>
+
+  <div class="settings-grid">
+
+    <div class="field">
+
+      <label for="showName">
+        Main Group Name
+      </label>
+
+      <input
+        type="text"
+        id="showName"
+        value="M32 - Configure Show"
+      >
+
+    </div>
+
+    <div class="field">
+
+      <label for="setupName">
+        Channel Setup Group Name
+      </label>
+
+      <input
+        type="text"
+        id="setupName"
+        value="M32 - Channel Setup"
+      >
+
+    </div>
+
+    <div class="field">
+
+      <label for="muteName">
+        Mute Group Name
+      </label>
+
+      <input
+        type="text"
+        id="muteName"
+        value="M32 - Mutes & Unmutes"
+      >
+
+    </div>
+
+    <div class="field">
+
+      <label for="patchTitle">
+        Network Patch Name
+      </label>
+
+      <input
+        type="text"
+        id="patchTitle"
+        value="Behringer/Midas X32/M32 - M32"
+      >
+
+    </div>
+
+    <div class="field">
+
+      <label for="waitIncrement">
+        Pre-wait Increment (seconds)
+      </label>
+
+      <input
+        type="number"
+        id="waitIncrement"
+        value="0.01"
+        min="0"
+        step="0.001"
+      >
+
+    </div>
+
+  </div>
+
+</section>
+
+<section class="panel">
+
+  <div class="section-heading">
+
+    <h2>
+      AppleScript Output
+    </h2>
+
+    <small id="cueCount">
+      0 cues
+    </small>
+
+  </div>
+
+  <div class="output-toolbar">
+
+    <button
+      class="btn primary"
+      id="copyBtn"
+    >
+      Copy AppleScript
+    </button>
+
+    <button
+      class="btn"
+      id="selectAllBtn"
+    >
+      Select All
+    </button>
+
+    <button
+      class="btn"
+      id="downloadBtn"
+    >
+      Save .applescript
+    </button>
+
+    <button
+      class="btn"
+      id="importBtn"
+    >
+      Import AppleScript
+    </button>
+
+    <span
+      class="output-status"
+      id="status"
+    >
+      Live generation enabled
+    </span>
+
+  </div>
+
+  <textarea
+    class="output"
+    id="output"
+    spellcheck="false"
+    readonly
+  ></textarea>
+
+</section>
+
+<div
+  class="modal-backdrop"
+  id="hotkeyModal"
+  hidden
+>
+
+  <div
+    class="modal-card hotkey-modal-card"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="hotkeyModalTitle"
+  >
+
+    <div class="modal-heading">
+      <h2 id="hotkeyModalTitle">Keyboard Shortcuts</h2>
+      <button class="modal-close" id="hotkeyModalClose" type="button" aria-label="Close">×</button>
+    </div>
+
+    <div class="hotkey-list">
+      <div><kbd>Q</kbd> / <kbd>N</kbd><span>Focus Channel Name and select all text</span></div>
+      <div><kbd>Return</kbd><span>Confirm Channel Name and unfocus the field</span></div>
+      <div><kbd>C</kbd><span>Focus the currently selected Color; use arrow keys, then Return</span></div>
+      <div><kbd>I</kbd><span>Focus Icon Search</span></div>
+      <div><kbd>Return</kbd> <em>in Icon Search</em><span>Select the first matching icon, or the icon currently focused by arrow keys</span></div>
+      <div><kbd>⌘C</kbd> / <kbd>Ctrl+C</kbd><span>Copy the selected channel's settings</span></div>
+      <div><kbd>⌘V</kbd> / <kbd>Ctrl+V</kbd><span>Paste copied settings into the selected channel(s)</span></div>
+      <div><kbd>Space</kbd><span>Toggle the selected channel(s) ON/OFF; never scrolls the page</span></div>
+      <div><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd><span>Navigate channels, colors, or icons depending on focus</span></div>
+      <div><kbd>?</kbd><span>Show this help</span></div>
+      <div><kbd>Esc</kbd><span>Close this help</span></div>
+    </div>
+
+    <div class="modal-footnote">
+      Clicking an icon applies it, clears the icon search, and returns focus to the page.
+    </div>
+
+  </div>
+
+</div>
+
+<div
+  class="modal-backdrop"
+  id="importModal"
+  hidden
+>
+
+  <div
+    class="modal-card import-modal-card"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="importModalTitle"
+  >
+
+    <div class="modal-heading">
+      <h2 id="importModalTitle">Import AppleScript</h2>
+      <button class="modal-close" id="importModalClose" type="button" aria-label="Close">×</button>
+    </div>
+
+    <p class="modal-description">Paste the AppleScript below. Generated scripts contain an embedded M32 settings snapshot, which is imported directly. Older scripts without that metadata block use the legacy AppleScript parser as a fallback.</p>
+
+    <textarea
+      id="importScriptInput"
+      class="import-script-input"
+      spellcheck="false"
+      placeholder="Paste AppleScript here…"
+    ></textarea>
+
+    <div class="modal-actions">
+      <button class="btn" id="importModalCancel" type="button">Cancel</button>
+      <button class="btn primary" id="importModalApply" type="button">Import &amp; Apply</button>
+    </div>
+
+  </div>
+
+</div>
+
+<div class="footer">
+  M32 Configurator · QLab 5 · Generated locally in your browser
+</div>
+
+</div>
+
+<script>
+"use strict";
+
+const ICON_FOLDER =
+  "icons/";
+
+const colors = [
+
+  {
+    id: "red1",
+    name: "Red 1",
+    value: 1,
+    hex: "#e34b50"
+  },
+
+  {
+    id: "red2",
+    name: "Red 2",
+    value: 2,
+    hex: "#a92e36"
+  },
+
+  {
+    id: "green1",
+    name: "Green 1",
+    value: 3,
+    hex: "#40bd72"
+  },
+
+  {
+    id: "green2",
+    name: "Green 2",
+    value: 4,
+    hex: "#23834c"
+  },
+
+  {
+    id: "yellow1",
+    name: "Yellow 1",
+    value: 5,
+    hex: "#e7ca42"
+  },
+
+  {
+    id: "yellow2",
+    name: "Yellow 2",
+    value: 6,
+    hex: "#ad941e"
+  },
+
+  {
+    id: "blue1",
+    name: "Blue 1",
+    value: 4,
+    hex: "#4689e9"
+  },
+
+  {
+    id: "blue2",
+    name: "Blue 2",
+    value: 8,
+    hex: "#2857a5"
+  },
+
+  {
+    id: "pink1",
+    name: "Pink 1",
+    value: 9,
+    hex: "#dc83c2"
+  },
+
+  {
+    id: "pink2",
+    name: "Pink 2",
+    value: 10,
+    hex: "#a64f8b"
+  },
+
+  {
+    id: "cyan1",
+    name: "Cyan 1",
+    value: 6,
+    hex: "#35c3d2"
+  },
+
+  {
+    id: "cyan2",
+    name: "Cyan 2",
+    value: 12,
+    hex: "#218c9b"
+  },
+
+  {
+    id: "white1",
+    name: "White 1",
+    value: 7,
+    hex: "#e7e9ed"
+  },
+
+  {
+    id: "white2",
+    name: "White 2",
+    value: 14,
+    hex: "#aeb4bd"
+  },
+
+  {
+    id: "blackout",
+    name: "Blackout",
+    value: 8,
+    hex: "#555b65"
+  }
+
+];
+
+const iconNames = [
+
+  "Blank",
+  "Kick Drum Beater",
+  "Kick Drum Port Hole",
+  "Snare Drum Top",
+  "Snare Drum Bottom",
+  "High Tom",
+  "Medium Tom",
+  "Floor Tom",
+  "Hi-hat",
+  "Cymbal",
+  "Drum kit",
+  "Cowbell",
+  "Bongos",
+  "Congas",
+  "Tambourine",
+  "Bar Chimes",
+  "Bass",
+  "Jazz Guitar",
+  "Viola Bass",
+  "Electric Guitar",
+  "Lead Guitar",
+  "Flying V",
+  "Acoustic Guitar",
+  "Combo Amp",
+  "Guitar Amp",
+  "Bass Amp",
+  "Piano",
+  "Organ",
+  "Keyboard 1",
+  "Keyboard 2",
+  "Synth 1",
+  "Synth 2",
+  "Synth 3",
+  "Keytar",
+  "Trumpet",
+  "Trombone",
+  "Saxophone",
+  "Clarinet",
+  "Violin",
+  "Cello",
+  "Male Singer",
+  "Female Singer",
+  "Choir",
+  "Rock On",
+  "Speaker A",
+  "Speaker B",
+  "Large Diaphragm Condenser",
+  "Condenser",
+  "Dynamic Mic - R",
+  "Dynamic Mic - L",
+  "Wireless Dynamic Mic",
+  "Podium Mic",
+  "In-Ear Monitors",
+  "XLR",
+  "Line In",
+  "Line In - L",
+  "Line In - R",
+  "RCA - L",
+  "RCA - R",
+  "Tape Deck",
+  "FX",
+  "Laptop",
+  "Monitor",
+  "Monitor - L",
+  "Monitor - R",
+  "Line Array Speakers",
+  "PA Speakers",
+  "Rack Unit",
+  "Network",
+  "Mix Bus",
+  "Matrix 1",
+  "Matrix 2",
+  "Matrix 3",
+  "Smiley Face"
+
+];
+
+const channels = Array.from(
+  { length: 32 },
+  (_, i) => ({
+
+    number:
+      i + 1,
+
+    name:
+      `Channel ${String(i + 1).padStart(2, "0")}`,
+
+    colorId:
+      "white1",
+
+    icon:
+      1,
+
+    enabled:
+      false,
+
+    configured:
+      true
+
+  })
+);
+
+let selectedChannel =
+  1;
+
+let selectedChannels =
+  new Set([1]);
+
+let lastClickedChannel =
+  1;
+
+let clipboardChannel =
+  null;
+
+const $ = id =>
+  document.getElementById(id);
+
+function channel(number) {
+
+  return channels[
+    number - 1
+  ];
+
+}
+
+function pad(number) {
+
+  return String(
+    number
+  ).padStart(
+    2,
+    "0"
+  );
+
+}
+
+function iconPath(number) {
+
+  return (
+    ICON_FOLDER +
+    "icon-" +
+    pad(number) +
+    ".bmp"
+  );
+
+}
+
+function colorFor(id) {
+
+  return (
+    colors.find(
+      color =>
+        color.id ===
+        id
+    ) ||
+    colors.find(
+      color =>
+        color.id ===
+        "white1"
+    )
+  );
+
+}
+
+function escApple(value) {
+
+  return String(value)
+
+    .replace(
+      /\\/g,
+      "\\\\"
+    )
+
+    .replace(
+      /"/g,
+      '\\"'
+    )
+
+    .replace(
+      /\r?\n/g,
+      " "
+    );
+
+}
+
+function appleString(value) {
+
+  return (
+    '"' +
+    escApple(value) +
+    '"'
+  );
+
+}
+
+function hasSelection() {
+
+  return (
+    selectedChannels.size >
+    0
+  );
+
+}
+
+function clearSelection() {
+
+  selectedChannels =
+    new Set();
+
+  renderGrid();
+
+  renderEditor();
+
+}
+
+function setSelection(
+  numbers,
+  primary = numbers[0]
+) {
+
+  selectedChannels =
+    new Set(
+      numbers.filter(
+        number =>
+          number >= 1 &&
+          number <= 32
+      )
+    );
+
+  if (
+    primary !== undefined &&
+    primary !== null
+  ) {
+
+    selectedChannel =
+      primary;
+
+  }
+
+  renderGrid();
+
+  renderEditor();
+
+}
+
+function selectChannel(
+  number,
+  event = {}
+) {
+
+  if (
+    event.shiftKey
+  ) {
+
+    const start =
+      lastClickedChannel;
+
+    const end =
+      number;
+
+    const range = [];
+
+    for (
+      let i =
+        Math.min(
+          start,
+          end
+        );
+
+      i <=
+        Math.max(
+          start,
+          end
+        );
+
+      i++
+    ) {
+
+      range.push(i);
+
+    }
+
+    setSelection(
+      range,
+      number
+    );
+
+    lastClickedChannel =
+      number;
+
+    return;
+
+  }
+
+  if (
+    event.metaKey ||
+    event.ctrlKey
+  ) {
+
+    const next =
+      new Set(
+        selectedChannels
+      );
+
+    if (
+      next.has(number)
+    ) {
+
+      next.delete(
+        number
+      );
+
+    } else {
+
+      next.add(
+        number
+      );
+
+    }
+
+    selectedChannel =
+      number;
+
+    selectedChannels =
+      next;
+
+    lastClickedChannel =
+      number;
+
+    renderGrid();
+
+    renderEditor();
+
+    return;
+
+  }
+
+  setSelection(
+    [number],
+    number
+  );
+
+  lastClickedChannel =
+    number;
+
+}
+
+function moveChannelFocus(
+  direction
+) {
+
+  let base =
+    selectedChannel;
+
+  if (
+    !hasSelection()
+  ) {
+
+    base =
+      lastClickedChannel ||
+      1;
+
+  }
+
+  const next =
+    Math.max(
+      1,
+      Math.min(
+        32,
+        base + direction
+      )
+    );
+
+  setSelection(
+    [next],
+    next
+  );
+
+  lastClickedChannel =
+    next;
+
+  const buttons =
+    document.querySelectorAll(
+      ".channel"
+    );
+
+  buttons[
+    next - 1
+  ]?.focus();
+
+}
+
+function applyToSelected(
+  callback
+) {
+
+  const targets =
+    hasSelection()
+      ? [...selectedChannels]
+      : [selectedChannel];
+
+  targets.forEach(
+    number => {
+
+      callback(
+        channel(number)
+      );
+
+    }
+  );
+
+}
+
+function getChannelSnapshot(number) {
+
+  const source =
+    channel(number);
+
+  return {
+
+    name:
+      source.name,
+
+    colorId:
+      source.colorId,
+
+    icon:
+      source.icon,
+
+    enabled:
+      source.enabled,
+
+    configured:
+      source.configured
+
+  };
+
+}
+
+function applyClipboardSnapshot(snapshot) {
+
+  if (!snapshot) {
+
+    $("status").textContent =
+      "Nothing copied yet";
+
+    return false;
+
+  }
+
+  if (!hasSelection()) {
+
+    $("status").textContent =
+      "Select one or more channels to paste into";
+
+    return false;
+
+  }
+
+  selectedChannels.forEach(
+    number => {
+
+      const target =
+        channel(number);
+
+      target.name =
+        snapshot.name;
+
+      target.colorId =
+        snapshot.colorId;
+
+      target.icon =
+        snapshot.icon;
+
+      target.enabled =
+        snapshot.enabled;
+
+      target.configured =
+        snapshot.configured;
+
+    }
+  );
+
+  renderGrid();
+
+  renderEditor();
+
+  generateScript();
+
+  $("status").textContent =
+    `Pasted ALL settings to ${selectedChannels.size} channel${
+      selectedChannels.size === 1
+        ? ""
+        : "s"
+    }`;
+
+  return true;
+
+}
+
+function copySelectedChannels() {
+
+  const source =
+    channel(selectedChannel);
+
+  clipboardChannel =
+    getChannelSnapshot(selectedChannel);
+
+  const payload =
+    JSON.stringify({
+      type: "M32 Studio Channel Settings",
+      version: 1,
+      channel: clipboardChannel
+    });
+
+  try {
+
+    if (navigator.clipboard?.writeText) {
+
+      navigator.clipboard
+        .writeText(payload)
+        .catch(() => {});
+
+    }
+
+  } catch (error) {
+
+  }
+
+  $("status").textContent =
+    `Copied ALL settings from Ch${pad(selectedChannel)}`;
+
+}
+
+async function pasteSelectedChannels() {
+
+  let snapshot =
+    null;
+
+  try {
+
+    if (navigator.clipboard?.readText) {
+
+      const text =
+        await navigator.clipboard.readText();
+
+      if (text) {
+
+        const data =
+          JSON.parse(text);
+
+        if (
+          data &&
+          data.type === "M32 Studio Channel Settings" &&
+          data.channel
+        ) {
+
+          snapshot =
+            data.channel;
+
+        }
+
+      }
+
+    }
+
+  } catch (error) {
+
+  }
+
+  if (!snapshot) {
+    snapshot = clipboardChannel;
+  }
+
+  applyClipboardSnapshot(snapshot);
+
+}
+
+function toggleSelectedChannels(forceOn = false) {
+
+  const targets =
+    hasSelection()
+      ? [...selectedChannels]
+      : [selectedChannel];
+
+  if (forceOn) {
+
+    targets.forEach(
+      number => {
+        channel(number).enabled = true;
+      }
+    );
+
+  } else {
+
+    const allOn =
+      targets.every(
+        number =>
+          channel(number).enabled
+      );
+
+    targets.forEach(
+      number => {
+        channel(number).enabled = !allOn;
+      }
+    );
+
+  }
+
+  renderGrid();
+
+  renderEditor();
+
+  generateScript();
+
+}
+
+function toggleFromStatus(
+  number,
+  event
+) {
+
+  event.preventDefault();
+
+  event.stopPropagation();
+
+  if (
+    !selectedChannels.has(
+      number
+    )
+  ) {
+
+    setSelection(
+      [number],
+      number
+    );
+
+    lastClickedChannel =
+      number;
+
+  }
+
+  toggleSelectedChannels();
+
+}
+
+function renderGrid() {
+
+  const row1 =
+    $("row1");
+
+  const row2 =
+    $("row2");
+
+  row1.innerHTML =
+    "";
+
+  row2.innerHTML =
+    "";
+
+  channels.forEach(
+    ch => {
+
+      const button =
+        document.createElement(
+          "button"
+        );
+
+      button.type =
+        "button";
+
+      button.className =
+        "channel";
+
+      const color =
+        colorFor(
+          ch.colorId
+        );
+
+      button.style.setProperty(
+        "--channel-color",
+        color.hex
+      );
+
+      if (
+        ch.colorId === "blackout"
+      ) {
+
+        button.classList.add(
+          "blackout"
+        );
+
+      }
+
+      if (
+        ch.enabled
+      ) {
+
+        button.classList.add(
+          "is-on"
+        );
+
+      } else {
+
+        button.classList.add(
+          "is-off"
+        );
+
+      }
+
+      if (
+        selectedChannels.has(
+          ch.number
+        )
+      ) {
+
+        button.classList.add(
+          "multi-selected"
+        );
+
+      }
+
+      if (
+        selectedChannels.size > 0 &&
+        ch.number ===
+          selectedChannel
+      ) {
+
+        button.classList.add(
+          "selected"
+        );
+
+      }
+
+      button.tabIndex =
+        (
+          ch.number ===
+          selectedChannel
+        )
+          ? 0
+          : -1;
+
+      button.innerHTML = `
+
+        <span class="channel-number">
+          ${pad(ch.number)}
+        </span>
+
+        ${
+          ch.colorId === "blackout"
+            ? ""
+            : `<img
+                class="channel-icon"
+                src="${iconPath(ch.icon)}"
+                alt=""
+              >`
+        }
+
+        <span class="channel-name"></span>
+
+        <span
+          class="channel-status ${
+            ch.enabled
+              ? ""
+              : "off"
+          }"
+          title="${
+            ch.enabled
+              ? "Turn channel OFF"
+              : "Turn channel ON"
+          }"
+        ></span>
+
+        <span
+          class="channel-state-label ${
+            ch.enabled
+              ? ""
+              : "off"
+          }"
+        >
+          ${ch.enabled ? "ON" : "OFF"}
+        </span>
+
+        <span
+          class="channel-color"
+        ></span>
+
+      `;
+
+      button.querySelector(
+        ".channel-name"
+      ).textContent =
+        ch.name;
+
+      button.querySelector(
+        ".channel-color"
+      ).style.background =
+        color.hex;
+
+      button.addEventListener(
+        "click",
+        event => {
+
+          selectChannel(
+            ch.number,
+            event
+          );
+
+        }
+      );
+
+      button.querySelector(
+        ".channel-status"
+      ).addEventListener(
+        "click",
+        event => {
+
+          toggleFromStatus(
+            ch.number,
+            event
+          );
+
+        }
+      );
+
+      button.addEventListener(
+        "keydown",
+        event => {
+
+          if (
+            event.key === " " ||
+            event.code === "Space"
+          ) {
+
+            event.preventDefault();
+
+            event.stopPropagation();
+
+            if (
+              !selectedChannels.has(
+                ch.number
+              )
+            ) {
+
+              setSelection(
+                [ch.number],
+                ch.number
+              );
+
+              lastClickedChannel =
+                ch.number;
+
+            }
+
+            toggleSelectedChannels(false);
+
+            return;
+
+          }
+
+          if (
+            event.key === "Enter"
+          ) {
+
+            event.preventDefault();
+
+            event.stopPropagation();
+
+            setSelection(
+              [ch.number],
+              ch.number
+            );
+
+            $("channelName").focus();
+
+            $("channelName").select();
+
+          }
+
+        }
+      );
+
+      if (
+        ch.number <=
+        16
+      ) {
+
+        row1.appendChild(
+          button
+        );
+
+      } else {
+
+        row2.appendChild(
+          button
+        );
+
+      }
+
+    }
+  );
+
+}
+
+function renderColors() {
+
+  const grid =
+    $("colorGrid");
+
+  grid.innerHTML =
+    "";
+
+  const activeColorId =
+    channel(
+      selectedChannel
+    ).colorId;
+
+  colors.forEach(
+    color => {
+
+      const button =
+        document.createElement(
+          "button"
+        );
+
+      button.type =
+        "button";
+
+      button.className =
+        "color-option";
+
+      if (
+        activeColorId ===
+        color.id
+      ) {
+
+        button.classList.add(
+          "active"
+        );
+
+      }
+
+      button.dataset.colorId =
+        color.id;
+
+      button.innerHTML = `
+
+        <span class="swatch"></span>
+
+        <span>
+          ${color.name}
+        </span>
+
+      `;
+
+      button.querySelector(
+        ".swatch"
+      ).style.background =
+        color.hex;
+
+      button.addEventListener(
+        "click",
+        event => {
+
+          event.preventDefault();
+
+          event.stopPropagation();
+
+          applyToSelected(
+            ch => {
+
+              ch.colorId =
+                color.id;
+
+            }
+          );
+
+          renderGrid();
+
+          renderEditor();
+
+          generateScript();
+
+          requestAnimationFrame(
+            () => {
+
+              document
+                .querySelector(
+                  `[data-color-id="${CSS.escape(color.id)}"]`
+                )
+                ?.focus();
+
+            }
+          );
+
+        }
+      );
+
+      grid.appendChild(
+        button
+      );
+
+    }
+  );
+
+}
+
+function renderIcons() {
+
+  const picker =
+    $("iconPicker");
+
+  const search =
+    $("iconSearch")
+      .value
+      .toLowerCase()
+      .trim();
+
+  picker.innerHTML =
+    "";
+
+  iconNames.forEach(
+    (name, index) => {
+
+      const iconNumber =
+        index + 1;
+
+      if (
+        search &&
+
+        !name
+          .toLowerCase()
+          .includes(search) &&
+
+        !String(iconNumber)
+          .includes(search)
+      ) {
+
+        return;
+
+      }
+
+      const button =
+        document.createElement(
+          "button"
+        );
+
+      button.type =
+        "button";
+
+      button.className =
+        "icon-option";
+
+      if (
+        channel(
+          selectedChannel
+        ).icon ===
+        iconNumber
+      ) {
+
+        button.classList.add(
+          "active"
+        );
+
+      }
+
+      button.dataset.iconNumber =
+        iconNumber;
+
+      const img =
+        document.createElement(
+          "img"
+        );
+
+      img.src =
+        iconPath(
+          iconNumber
+        );
+
+      img.alt =
+        name;
+
+      img.onerror =
+        () => {
+
+          img.style.opacity =
+            "0.2";
+
+        };
+
+      const label =
+        document.createElement(
+          "span"
+        );
+
+      label.textContent =
+        pad(iconNumber);
+
+      button.append(
+        img,
+        label
+      );
+
+      button.title =
+        `Icon ${iconNumber}: ${name}`;
+
+      button.addEventListener(
+        "click",
+        event => {
+
+          event.preventDefault();
+
+          event.stopPropagation();
+
+          applyToSelected(
+            ch => {
+
+              ch.icon =
+                iconNumber;
+
+            }
+          );
+
+          renderGrid();
+
+          renderEditor();
+
+          generateScript();
+
+          $("iconSearch").value = "";
+          renderIcons();
+          $("iconSearch").blur();
+
+        }
+      );
+
+      picker.appendChild(
+        button
+      );
+
+    }
+  );
+
+}
+
+function renderEditor() {
+
+  const ch =
+    channel(
+      selectedChannel
+    );
+
+  const color =
+    colorFor(
+      ch.colorId
+    );
+
+  if (
+    selectedChannels.size ===
+    0
+  ) {
+
+    $("editorTitle").textContent =
+      `Channel ${pad(ch.number)} Configuration`;
+
+    $("selectionDescription").textContent =
+      "No channels selected — editor shows the last active channel";
+
+  }
+
+  else if (
+    selectedChannels.size ===
+    1
+  ) {
+
+    $("editorTitle").textContent =
+      `Channel ${pad(ch.number)} Configuration`;
+
+    $("selectionDescription").textContent =
+      "One channel selected";
+
+  }
+
+  else {
+
+    $("editorTitle").textContent =
+      `${selectedChannels.size} Channels Selected`;
+
+    $("selectionDescription").textContent =
+      "Changes apply to all selected channels";
+
+  }
+
+  $("channelName").value =
+    ch.name;
+
+  $("previewName").textContent =
+    ch.name;
+
+  $("previewNumber").textContent =
+    `INPUT ${pad(ch.number)}`;
+
+  $("previewColor").style.background =
+    color.hex;
+
+  $("previewIcon").src =
+    iconPath(
+      ch.icon
+    );
+
+  $("previewState").textContent =
+    ch.enabled
+      ? "ON"
+      : "OFF";
+
+  $("previewState").className =
+    "preview-state " +
+    (
+      ch.enabled
+        ? "on"
+        : "off"
+    );
+
+  renderColors();
+
+  renderIcons();
+
+}
+
+function appleScriptUnescape(value) {
+
+  return String(value)
+    .replace(/\\"/g, '"')
+    .replace(/\\\\/g, "\\");
+
+}
+
+function appleScriptQuotedValue(text) {
+
+  const match =
+    String(text).match(/"((?:\\.|[^"\\])*)"/);
+
+  return match
+    ? appleScriptUnescape(match[1])
+    : "";
+
+}
+
+function importAppleScript(text) {
+
+  const source =
+    String(text || "");
+
+  const metadata =
+    extractSettingsMetadata(
+      source
+    );
+
+  if (metadata) {
+
+    applySettingsMetadata(
+      metadata
+    );
+
+    return;
+
+  }
+
+  if (!source.trim()) {
+    throw new Error("Paste an AppleScript before importing.");
+  }
+
+  const imported =
+    channels.map((ch, index) => ({
+      ...ch,
+      name: `Channel ${pad(index + 1)}`,
+      colorId: "white1",
+      icon: 1,
+      enabled: false,
+      configured: true
+    }));
+
+  const readQuoted = value => {
+
+    if (!value) {
+      return null;
+    }
+
+    const match =
+      value.match(/^"((?:\\.|[^"\\])*)"$/s);
+
+    return match
+      ? appleScriptUnescape(match[1])
+      : null;
+
+  };
+
+  const readAssignment = name => {
+
+    const regex = new RegExp(
+      `(?:^|\\n)\\s*set\\s+${name}\\s+to\\s+"((?:\\\\.|[^"\\\\])*)"`,
+      "i"
+    );
+
+    const match =
+      source.match(regex);
+
+    return match
+      ? appleScriptUnescape(match[1])
+      : null;
+
+  };
+
+  const showNameMatch =
+    source.match(
+      /set\s+q\s+name\s+of\s+mainGroup\s+to\s+"((?:\.|[^"\\])*)"/i
+    );
+
+  const setupNameMatch =
+    source.match(
+      /set\s+q\s+name\s+of\s+setupGroup\s+to\s+"((?:\.|[^"\\])*)"/i
+    );
+
+  const muteNameMatch =
+    source.match(
+      /set\s+q\s+name\s+of\s+muteGroup\s+to\s+"((?:\.|[^"\\])*)"/i
+    );
+
+  if (showNameMatch) {
+    $("showName").value =
+      appleScriptUnescape(showNameMatch[1]);
+  }
+
+  if (setupNameMatch) {
+    $("setupName").value =
+      appleScriptUnescape(setupNameMatch[1]);
+  }
+
+  if (muteNameMatch) {
+    $("muteName").value =
+      appleScriptUnescape(muteNameMatch[1]);
+  }
+
+  const patchAssignment =
+    source.match(
+      /set\s+patchTitle\s+to\s+"((?:\.|[^"\\])*)"/i
+    );
+
+  const patchMatches = [
+    ...source.matchAll(
+      /\},\s*"((?:\.|[^"\\])*)"\s*,\s*(?:setupCounter|muteCounter)/gi
+    )
+  ];
+
+  if (patchAssignment) {
+    $("patchTitle").value =
+      appleScriptUnescape(patchAssignment[1]);
+  }
+  else if (patchMatches.length) {
+    $("patchTitle").value =
+      appleScriptUnescape(patchMatches[0][1]);
+  }
+
+  const waitMatch =
+    source.match(
+      /set\s+pre\s+wait\s+of\s+newCue\s+to\s*\(\s*cueIndex\s*\*\s*([0-9]+(?:\.[0-9]+)?)\s*\)/i
+    );
+
+  if (waitMatch) {
+    $("waitIncrement").value =
+      waitMatch[1];
+  }
+
+  const parameterRegex =
+    /\{\s*"Channel"\s*,\s*"(\d{1,2})"\s*,\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,\s*([^}\n]+?)\s*\}/gi;
+
+  let parameterMatch;
+
+  while (
+    (parameterMatch = parameterRegex.exec(source)) !== null
+  ) {
+
+    const number =
+      Number(parameterMatch[1]);
+
+    const section =
+      parameterMatch[2].toLowerCase();
+
+    const property =
+      parameterMatch[3].toLowerCase();
+
+    const rawValue =
+      parameterMatch[4].trim();
+
+    if (
+      number < 1 ||
+      number > 32 ||
+      section !== "config" && section !== "mix"
+    ) {
+      continue;
+    }
+
+    const target =
+      imported[number - 1];
+
+    if (
+      section === "config" &&
+      property === "name"
+    ) {
+
+      const value =
+        readQuoted(rawValue);
+
+      if (value !== null) {
+        target.name = value;
+        target.configured = true;
+      }
+
+      continue;
+
+    }
+
+    if (
+      section === "config" &&
+      property === "color"
+    ) {
+
+      const value =
+        Number(rawValue);
+
+      const color =
+        colors.find(
+          candidate =>
+            candidate.value === value
+        );
+
+      if (color) {
+        target.colorId = color.id;
+        target.configured = true;
+      }
+
+      continue;
+
+    }
+
+    if (
+      section === "config" &&
+      property === "icon"
+    ) {
+
+      const value =
+        Number(rawValue);
+
+      if (
+        Number.isInteger(value) &&
+        value >= 1 &&
+        value <= iconNames.length
+      ) {
+        target.icon = value;
+        target.configured = true;
+      }
+
+      continue;
+
+    }
+
+    if (
+      section === "mix" &&
+      property === "on"
+    ) {
+
+      const normalized =
+        rawValue
+          .replace(/\s+/g, "")
+          .toLowerCase();
+
+      if (
+        normalized === "true" ||
+        normalized === "false"
+      ) {
+        target.enabled =
+          normalized === "true";
+        target.configured = true;
+      }
+
+    }
+
+  }
+
+  const nameTitleRegex =
+    /Ch\s*(\d{1,2})\s+Name:\s*([^\r\n,\)]+?)(?="\s*&|"\s*,|"\s*\))/gi;
+
+  let match;
+
+  while ((match = nameTitleRegex.exec(source)) !== null) {
+
+    const number = Number(match[1]);
+
+    if (
+      number >= 1 &&
+      number <= 32 &&
+      imported[number - 1].name === `Channel ${pad(number)}`
+    ) {
+      imported[number - 1].name =
+        match[2].trim();
+    }
+
+  }
+
+  const colorTitleRegex =
+    /Ch\s*(\d{1,2})\s+Color:\s*([^\r\n"&]+?)(?=\s*&|\s*"|\s*\))/gi;
+
+  while ((match = colorTitleRegex.exec(source)) !== null) {
+
+    const number = Number(match[1]);
+
+    if (number < 1 || number > 32) {
+      continue;
+    }
+
+    const color =
+      colors.find(
+        candidate =>
+          candidate.name.toLowerCase() ===
+          match[2].trim().toLowerCase()
+      );
+
+    if (color) {
+      imported[number - 1].colorId = color.id;
+    }
+
+  }
+
+  const iconTitleRegex =
+    /Ch\s*(\d{1,2})\s+Icon\s+(\d+)/gi;
+
+  while ((match = iconTitleRegex.exec(source)) !== null) {
+
+    const number = Number(match[1]);
+    const iconNumber = Number(match[2]);
+
+    if (
+      number >= 1 &&
+      number <= 32 &&
+      iconNumber >= 1 &&
+      iconNumber <= iconNames.length &&
+      imported[number - 1].icon === 1
+    ) {
+      imported[number - 1].icon = iconNumber;
+    }
+
+  }
+
+  const stateTitleRegex =
+    /Ch\s*(\d{1,2})\s+(ON|OFF)(?="|\s|\))/gi;
+
+  while ((match = stateTitleRegex.exec(source)) !== null) {
+
+    const number = Number(match[1]);
+
+    if (number >= 1 && number <= 32) {
+      imported[number - 1].enabled =
+        match[2].toUpperCase() === "ON";
+    }
+
+  }
+
+  channels.forEach((ch, index) => {
+    Object.assign(ch, imported[index]);
+  });
+
+  selectedChannel = 1;
+  selectedChannels = new Set([1]);
+  lastClickedChannel = 1;
+  clipboardChannel = null;
+
+  $("iconSearch").value = "";
+
+  renderGrid();
+  renderEditor();
+  generateScript();
+
+  $("status").textContent =
+    "AppleScript imported — channel and QLab settings now match the imported script";
+
+}
+
+function getConfig() {
+
+  return {
+
+    showName:
+      $("showName").value.trim() ||
+      "M32 - Configure Show",
+
+    setupName:
+      $("setupName").value.trim() ||
+      "M32 - Channel Setup",
+
+    muteName:
+      $("muteName").value.trim() ||
+      "M32 - Mutes & Unmutes",
+
+    patchTitle:
+      $("patchTitle").value.trim() ||
+      "Behringer/Midas X32/M32 - M32",
+
+    wait:
+      Math.max(
+        0,
+        Number(
+          $("waitIncrement").value
+        ) || 0
+      )
+
+  };
+
+}
+
+const M32_METADATA_START = "(* M32_STUDIO_SETTINGS";
+const M32_METADATA_END = "M32_STUDIO_SETTINGS *)";
+const M32_METADATA_FORMAT = "M32 Configurator QLab Generator";
+const M32_METADATA_LEGACY_FORMAT = "M32 Studio QLab Generator";
+const M32_METADATA_VERSION = 1;
+
+function getSettingsMetadata() {
+  return {
+    format: M32_METADATA_FORMAT,
+    version: M32_METADATA_VERSION,
+    settings: {
+      showName: $("showName").value.trim() || "M32 - Configure Show",
+      setupName: $("setupName").value.trim() || "M32 - Channel Setup",
+      muteName: $("muteName").value.trim() || "M32 - Mutes & Unmutes",
+      patchTitle: $("patchTitle").value.trim() || "Behringer/Midas X32/M32 - M32",
+      waitIncrement: Math.max(0, Number($("waitIncrement").value) || 0)
+    },
+    channels: channels.map(ch => ({
+      number: ch.number,
+      name: ch.name,
+      colorId: ch.colorId,
+      icon: ch.icon,
+      enabled: ch.enabled,
+      configured: ch.configured
+    }))
+  };
+}
+
+function serializeSettingsMetadata() {
+  return JSON.stringify(
+    getSettingsMetadata(),
+    null,
+    2
+  ).replace(/\*\)/g, "*\\u0029");
+}
+
+function extractSettingsMetadata(source) {
+  const text = String(source || "");
+  const startIndex = text.indexOf(M32_METADATA_START);
+
+  if (startIndex < 0) {
+    return null;
+  }
+
+  const payloadStart = startIndex + M32_METADATA_START.length;
+  const endIndex = text.indexOf(M32_METADATA_END, payloadStart);
+
+  if (endIndex < 0) {
+    throw new Error(
+      "M32 settings metadata is present, but its closing marker is missing."
+    );
+  }
+
+  const jsonText = text.slice(payloadStart, endIndex).trim();
+
+  if (!jsonText) {
+    throw new Error("M32 settings metadata is empty.");
+  }
+
+  try {
+    return JSON.parse(jsonText);
+  } catch (error) {
+    throw new Error(
+      `M32 settings metadata contains invalid JSON: ${error.message}`
+    );
+  }
+}
+
+function validateSettingsMetadata(data) {
+  if (!data || typeof data !== "object") {
+    throw new Error("M32 settings metadata is not an object.");
+  }
+
+  if (
+    data.format !== M32_METADATA_FORMAT &&
+    data.format !== M32_METADATA_LEGACY_FORMAT
+  ) {
+    throw new Error(
+      "The AppleScript contains an unrecognized M32 settings format."
+    );
+  }
+
+  if (!Number.isInteger(data.version) || data.version < 1) {
+    throw new Error("The M32 settings metadata has an unsupported version.");
+  }
+
+  if (!data.settings || typeof data.settings !== "object") {
+    throw new Error("M32 settings metadata is missing its settings object.");
+  }
+
+  [
+    "showName",
+    "setupName",
+    "muteName",
+    "patchTitle",
+    "waitIncrement"
+  ].forEach(key => {
+    if (!(key in data.settings)) {
+      throw new Error(
+        `M32 settings metadata is missing settings.${key}.`
+      );
+    }
+  });
+
+  if (!Array.isArray(data.channels) || data.channels.length !== 32) {
+    throw new Error(
+      "M32 settings metadata must contain exactly 32 channels."
+    );
+  }
+
+  data.channels.forEach((ch, index) => {
+    if (!ch || typeof ch !== "object" || ch.number !== index + 1) {
+      throw new Error(
+        `Channel ${index + 1} metadata is invalid.`
+      );
+    }
+
+    if (typeof ch.name !== "string") {
+      throw new Error(`Channel ${index + 1} is missing a valid name.`);
+    }
+
+    if (
+      typeof ch.colorId !== "string" ||
+      !colors.some(color => color.id === ch.colorId)
+    ) {
+      throw new Error(`Channel ${index + 1} contains an invalid colorId.`);
+    }
+
+    if (
+      !Number.isInteger(ch.icon) ||
+      ch.icon < 1 ||
+      ch.icon > iconNames.length
+    ) {
+      throw new Error(`Channel ${index + 1} contains an invalid icon.`);
+    }
+
+    if (
+      typeof ch.enabled !== "boolean" ||
+      typeof ch.configured !== "boolean"
+    ) {
+      throw new Error(`Channel ${index + 1} contains invalid state values.`);
+    }
+  });
+
+  const waitIncrement = Number(data.settings.waitIncrement);
+
+  if (!Number.isFinite(waitIncrement) || waitIncrement < 0) {
+    throw new Error("M32 settings metadata contains an invalid waitIncrement.");
+  }
+}
+
+function applySettingsMetadata(data) {
+  validateSettingsMetadata(data);
+
+  $("showName").value = String(data.settings.showName);
+  $("setupName").value = String(data.settings.setupName);
+  $("muteName").value = String(data.settings.muteName);
+  $("patchTitle").value = String(data.settings.patchTitle);
+  $("waitIncrement").value = String(Number(data.settings.waitIncrement));
+
+  data.channels.forEach((incoming, index) => {
+    Object.assign(channels[index], {
+      number: incoming.number,
+      name: incoming.name,
+      colorId: incoming.colorId,
+      icon: incoming.icon,
+      enabled: incoming.enabled,
+      configured: incoming.configured
+    });
+  });
+
+  selectedChannel = 1;
+  selectedChannels = new Set([1]);
+  lastClickedChannel = 1;
+  clipboardChannel = null;
+
+  $("iconSearch").value = "";
+
+  renderGrid();
+  renderEditor();
+  generateScript();
+
+  $("status").textContent =
+    "M32 settings metadata imported successfully";
+}
+
+function generateScript() {
+
+  const cfg =
+    getConfig();
+
+  const lines =
+    [];
+
+  const add =
+    line =>
+      lines.push(line);
+
+  const blank =
+    () =>
+      lines.push("");
+
+  add(
+    M32_METADATA_START
+  );
+
+  serializeSettingsMetadata()
+    .split("\n")
+    .forEach(
+      line =>
+        add(line)
+    );
+
+  add(
+    M32_METADATA_END
+  );
+
+  blank();
+
+  const setupCueCount =
+    channels.length * 3;
+
+  const muteCueCount =
+    32;
+
+  add(
+    "set patchTitle to " +
+    appleString(
+      cfg.patchTitle
+    )
+  );
+
+  blank();
+
+  add(
+    "set emojiMixer to character id 127898"
+  );
+
+  add(
+    "set emojiName to character id 127875"
+  );
+
+  add(
+    "set emojiEye to character id 128065"
+  );
+
+  add(
+    "set emojiPalette to character id 127912"
+  );
+
+  add(
+    "set emojiTag to character id 127363"
+  );
+
+  blank();
+
+  add(
+    "set emojiBlue to character id 128998"
+  );
+
+  add(
+    "set emojiRed to character id 128997"
+  );
+
+  add(
+    "set emojiYellow to character id 129000"
+  );
+
+  add(
+    "set emojiGreen to character id 129001"
+  );
+
+  blank();
+
+  add(
+    "set emojiWhite to (character id 9725) & (character id 65039)"
+  );
+
+  add(
+    "set emojiBlack to (character id 9724) & (character id 65039)"
+  );
+
+  blank();
+
+  add(
+    "set emojiNamePrefix to emojiMixer & emojiTag"
+  );
+
+  add(
+    "set emojiIconPrefix to emojiMixer & emojiEye"
+  );
+
+  add(
+    "set emojiColorPrefix to emojiMixer & emojiPalette"
+  );
+
+  add(
+    "set emojiOnPrefix to emojiMixer & emojiGreen"
+  );
+
+  add(
+    "set emojiOffPrefix to emojiMixer & emojiRed"
+  );
+
+  blank();
+
+  add(
+    'tell application id "com.figure53.QLab.5"'
+  );
+
+  add(
+    "\ttell front workspace"
+  );
+
+  blank();
+
+  add(
+    '\t\tmake type "Group"'
+  );
+
+  add(
+    '\t\tset mainGroup to last item of (selected as list)'
+  );
+
+  add(
+    '\t\tset q name of mainGroup to ' +
+    appleString(
+      cfg.showName
+    )
+  );
+
+  add(
+    "\t\tset mode of mainGroup to playlist"
+  );
+
+  blank();
+
+  add(
+    '\t\tmake type "Group"'
+  );
+
+  add(
+    '\t\tset setupGroup to last item of (selected as list)'
+  );
+
+  add(
+    '\t\tset q name of setupGroup to ' +
+    appleString(
+      cfg.setupName
+    )
+  );
+
+  add(
+    "\t\tset mode of setupGroup to timeline"
+  );
+
+  blank();
+
+  add(
+    "\t\tset sourceList to parent of setupGroup"
+  );
+
+  add(
+    "\t\ttell sourceList"
+  );
+
+  add(
+    "\t\t\tmove cue id (uniqueID of setupGroup) to end of mainGroup"
+  );
+
+  add(
+    "\t\tend tell"
+  );
+
+  blank();
+
+  add(
+    "\t\tset setupCounter to 0"
+  );
+
+  blank();
+
+  channels.forEach(
+    ch => {
+
+      const num =
+        pad(
+          ch.number
+        );
+
+      const groupName =
+        `Ch${num} - ${ch.name}`;
+
+      add(
+        '\t\tmake type "Group"'
+      );
+
+      add(
+        '\t\tset channelGroup to last item of (selected as list)'
+      );
+
+      add(
+        '\t\tset q name of channelGroup to ' +
+        appleString(
+          groupName
+        )
+      );
+
+      add(
+        "\t\tset mode of channelGroup to timeline"
+      );
+
+      blank();
+
+      add(
+        "\t\tset channelGroupID to uniqueID of channelGroup"
+      );
+
+      add(
+        "\t\tset channelSourceList to parent of channelGroup"
+      );
+
+      blank();
+
+      add(
+        "\t\ttell channelSourceList"
+      );
+
+      add(
+        "\t\t\tmove cue id channelGroupID to end of setupGroup"
+      );
+
+      add(
+        "\t\tend tell"
+      );
+
+      blank();
+
+      const scriptChannelName =
+        String(ch.name || "").trim() ||
+        "[blank]";
+
+      const nameTitle =
+        `emojiNamePrefix & " Ch${num} Name: ${escApple(scriptChannelName)}"`;
+
+      const nameParams =
+        `{"Channel", "${num}", "Config", "Name", ${appleString(scriptChannelName)}}`;
+
+      add(
+        `\t\tmy makeM32Cue(channelGroup, ${nameTitle}, ${nameParams}, patchTitle, setupCounter)`
+      );
+
+      add(
+        "\t\tset setupCounter to setupCounter + 1"
+      );
+
+      blank();
+
+      const color =
+        colorFor(
+          ch.colorId
+        );
+
+      let emojiExpression =
+        "emojiWhite";
+
+      if (
+        color.name.startsWith(
+          "Red"
+        )
+      ) {
+
+        emojiExpression =
+          "emojiRed";
+
+      }
+
+      else if (
+        color.name.startsWith(
+          "Green"
+        )
+      ) {
+
+        emojiExpression =
+          "emojiGreen";
+
+      }
+
+      else if (
+        color.name.startsWith(
+          "Yellow"
+        )
+      ) {
+
+        emojiExpression =
+          "emojiYellow";
+
+      }
+
+      else if (
+        color.name.startsWith(
+          "Blue"
+        )
+      ) {
+
+        emojiExpression =
+          "emojiBlue";
+
+      }
+
+      else if (
+        color.name.startsWith(
+          "Cyan"
+        )
+      ) {
+
+        emojiExpression =
+          "emojiBlue";
+
+      }
+
+      else if (
+        color.name.startsWith(
+          "Pink"
+        )
+      ) {
+
+        emojiExpression =
+          "emojiRed";
+
+      }
+
+      else if (
+        color.name ===
+        "Blackout"
+      ) {
+
+        emojiExpression =
+          "emojiBlack";
+
+      }
+
+      const colorTitle =
+        `emojiColorPrefix & " Ch${num} Color: ${escApple(color.name)} " & ${emojiExpression}`;
+
+      const colorParams =
+        `{"Channel", "${num}", "Config", "Color", ${color.value}}`;
+
+      add(
+        `\t\tmy makeM32Cue(channelGroup, ${colorTitle}, ${colorParams}, patchTitle, setupCounter)`
+      );
+
+      add(
+        "\t\tset setupCounter to setupCounter + 1"
+      );
+
+      blank();
+
+      const iconName =
+        iconNames[
+          ch.icon - 1
+        ] ||
+        "Blank";
+
+      const iconTitle =
+        `emojiIconPrefix & " Ch${num} Icon ${ch.icon}: [${escApple(iconName)}]"`;
+
+      const iconParams =
+        `{"Channel", "${num}", "Config", "Icon", ${ch.icon}}`;
+
+      add(
+        `\t\tmy makeM32Cue(channelGroup, ${iconTitle}, ${iconParams}, patchTitle, setupCounter)`
+      );
+
+      add(
+        "\t\tset setupCounter to setupCounter + 1"
+      );
+
+      blank();
+
+      add(
+        "\t\tcollapse channelGroup"
+      );
+
+      blank();
+
+    }
+  );
+
+  add(
+    "\t\tcollapse setupGroup"
+  );
+
+  blank();
+
+  add(
+    '\t\tmake type "Group"'
+  );
+
+  add(
+    '\t\tset muteGroup to last item of (selected as list)'
+  );
+
+  add(
+    '\t\tset q name of muteGroup to ' +
+    appleString(
+      cfg.muteName
+    )
+  );
+
+  add(
+    "\t\tset mode of muteGroup to timeline"
+  );
+
+  blank();
+
+  add(
+    "\t\tset sourceList to parent of muteGroup"
+  );
+
+  add(
+    "\t\ttell sourceList"
+  );
+
+  add(
+    "\t\t\tmove cue id (uniqueID of muteGroup) to end of mainGroup"
+  );
+
+  add(
+    "\t\tend tell"
+  );
+
+  blank();
+
+  add(
+    "\t\tset muteCounter to 0"
+  );
+
+  blank();
+
+  channels.forEach(
+    ch => {
+
+      const num =
+        pad(
+          ch.number
+        );
+
+      const prefix =
+        ch.enabled
+          ? "emojiOnPrefix"
+          : "emojiOffPrefix";
+
+      const state =
+        ch.enabled
+          ? "true"
+          : "false";
+
+      const label =
+        ch.enabled
+          ? "ON"
+          : "OFF";
+
+      const title =
+        `${prefix} & " Ch${num} ${label}"`;
+
+      const params =
+        `{"Channel", "${num}", "Mix", "On", ${state}}`;
+
+      add(
+        `\t\tmy makeM32Cue(muteGroup, ${title}, ${params}, patchTitle, muteCounter)`
+      );
+
+      add(
+        "\t\tset muteCounter to muteCounter + 1"
+      );
+
+      blank();
+
+    }
+  );
+
+  add(
+    "\t\tcollapse muteGroup"
+  );
+
+  blank();
+
+  add(
+    "\t\tcollapse mainGroup"
+  );
+
+  add(
+    "\tend tell"
+  );
+
+  add(
+    "end tell"
+  );
+
+  blank();
+
+  add(
+    "on makeM32Cue(theGroup, cueTitle, paramList, patchTitle, cueIndex)"
+  );
+
+  add(
+    '\ttell application id "com.figure53.QLab.5"'
+  );
+
+  add(
+    "\t\ttell front workspace"
+  );
+
+  add(
+    '\t\t\tmake type "Network"'
+  );
+
+  add(
+    "\t\t\tset newCue to last item of (selected as list)"
+  );
+
+  add(
+    "\t\t\tset q name of newCue to cueTitle"
+  );
+
+  add(
+    "\t\t\tset network patch name of newCue to patchTitle"
+  );
+
+  add(
+    "\t\t\tset parameter values of newCue to paramList"
+  );
+
+  add(
+    `\t\t\tset pre wait of newCue to (cueIndex * ${cfg.wait})`
+  );
+
+  blank();
+
+  add(
+    "\t\t\tset newCueID to uniqueID of newCue"
+  );
+
+  add(
+    "\t\t\tset sourceList to parent of newCue"
+  );
+
+  blank();
+
+  add(
+    "\t\t\ttell sourceList"
+  );
+
+  add(
+    "\t\t\t\tmove cue id newCueID to end of theGroup"
+  );
+
+  add(
+    "\t\t\tend tell"
+  );
+
+  add(
+    "\t\tend tell"
+  );
+
+  add(
+    "\tend tell"
+  );
+
+  add(
+    "end makeM32Cue"
+  );
+
+  $("output").value =
+    lines.join(
+      "\n"
+    );
+
+  $("cueCount").textContent =
+    `${
+      setupCueCount +
+      muteCueCount
+    } network cues`;
+
+}
+
+$("channelName")
+  .addEventListener(
+    "input",
+    event => {
+
+      const value =
+        event.target.value;
+
+      applyToSelected(
+        ch => {
+
+          ch.name =
+            value;
+
+        }
+      );
+
+      $("previewName").textContent =
+        value;
+
+      renderGrid();
+
+      generateScript();
+
+    }
+  );
+
+$("channelName")
+  .addEventListener(
+    "keydown",
+    event => {
+
+      if (event.key !== "Enter") {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const value =
+        event.currentTarget.value;
+
+      applyToSelected(
+        ch => {
+          ch.name = value;
+        }
+      );
+
+      renderGrid();
+      renderEditor();
+      generateScript();
+
+      $("channelName").blur();
+
+      $("status").textContent =
+        `Channel name applied to ${selectedChannels.size || 1} channel${(selectedChannels.size || 1) === 1 ? "" : "s"}`;
+
+    }
+  );
+
+$("iconSearch")
+  .addEventListener(
+    "input",
+    renderIcons
+  );
+
+$("iconSearch")
+  .addEventListener(
+    "keydown",
+    event => {
+
+      if (
+        event.key === "ArrowDown" ||
+        event.key === "ArrowRight" ||
+        event.key === "ArrowUp" ||
+        event.key === "ArrowLeft"
+      ) {
+
+        const icons =
+          [...$("iconPicker").querySelectorAll(".icon-option")];
+
+        if (!icons.length) {
+          return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        icons[0].focus();
+        return;
+
+      }
+
+      if (event.key !== "Enter") {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const focusedIcon =
+        document.activeElement?.closest?.(".icon-option");
+
+      const firstIcon =
+        $("iconPicker").querySelector(".icon-option");
+
+      const targetIcon =
+        focusedIcon || firstIcon;
+
+      if (!targetIcon) {
+        return;
+      }
+
+      targetIcon.click();
+
+    }
+  );
+
+[
+  "showName",
+  "setupName",
+  "muteName",
+  "patchTitle",
+  "waitIncrement"
+]
+.forEach(
+  id => {
+
+    $(id).addEventListener(
+      "input",
+      generateScript
+    );
+
+  }
+);
+
+$("allOn")
+  .addEventListener(
+    "click",
+    event => {
+
+      event.stopPropagation();
+
+      channels.forEach(
+        ch => {
+
+          ch.enabled =
+            true;
+
+        }
+      );
+
+      selectedChannels = new Set();
+
+      renderGrid();
+
+      renderEditor();
+
+      generateScript();
+
+    }
+  );
+
+$("allOff")
+  .addEventListener(
+    "click",
+    event => {
+
+      event.stopPropagation();
+
+      channels.forEach(
+        ch => {
+
+          ch.enabled =
+            false;
+
+        }
+      );
+
+      selectedChannels = new Set();
+
+      renderGrid();
+
+      renderEditor();
+
+      generateScript();
+
+    }
+  );
+
+$("copyBtn")
+  .addEventListener(
+    "click",
+    event => {
+
+      event.stopPropagation();
+
+      copyScript(
+        event.currentTarget
+      );
+
+    }
+  );
+
+$("selectAllBtn")
+  .addEventListener(
+    "click",
+    event => {
+
+      event.stopPropagation();
+
+      $("output").focus();
+
+      $("output").select();
+
+    }
+  );
+
+$("downloadBtn")
+  .addEventListener(
+    "click",
+    event => {
+
+      event.stopPropagation();
+
+      const blob =
+        new Blob(
+          [
+            $("output").value
+          ],
+          {
+            type:
+              "text/plain;charset=utf-8"
+          }
+        );
+
+      const url =
+        URL.createObjectURL(
+          blob
+        );
+
+      const a =
+        document.createElement(
+          "a"
+        );
+
+      a.href =
+        url;
+
+      a.download =
+        "M32-Configurator-Configuration.applescript";
+
+      document.body.appendChild(
+        a
+      );
+
+      a.click();
+
+      a.remove();
+
+      URL.revokeObjectURL(
+        url
+      );
+
+      $("status").textContent =
+        "AppleScript saved";
+
+    }
+  );
+
+document.addEventListener(
+  "click",
+  event => {
+
+    const target =
+      event.target;
+
+    if (
+      target.closest(
+        ".channel"
+      )
+    ) {
+
+      return;
+
+    }
+
+    if (
+      target.closest(
+        "#channelEditorPanel"
+      )
+    ) {
+
+      return;
+
+    }
+clearSelection();
+
+  }
+);
+
+document.addEventListener(
+  "keydown",
+  async event => {
+
+    const target =
+      event.target;
+
+    const isTyping =
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      target instanceof HTMLSelectElement ||
+      target.isContentEditable;
+
+    const command =
+      event.metaKey ||
+      event.ctrlKey;
+
+    if (!$("hotkeyModal").hidden) {
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        closeHotkeyModal();
+      }
+
+      return;
+    }
+
+    if (!$("importModal").hidden) {
+      return;
+    }
+
+    if (isTyping) {
+      return;
+    }
+
+    if (event.key === "?") {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      openHotkeyModal();
+      return;
+    }
+
+    if (event.key === "Escape") {
+
+      event.preventDefault();
+      event.stopPropagation();
+      clearSelection();
+      return;
+
+    }
+
+    if (
+      !command &&
+      (event.key.toLowerCase() === "q" ||
+       event.key.toLowerCase() === "n") &&
+      hasSelection()
+    ) {
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+
+      $("channelName").focus();
+      $("channelName").select();
+      return;
+
+    }
+
+    if (
+      !command &&
+      event.key.toLowerCase() === "c" &&
+      hasSelection()
+    ) {
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+
+      requestAnimationFrame(
+        () => {
+          document
+            .querySelector(
+              `[data-color-id="${CSS.escape(channel(selectedChannel).colorId)}"]`
+            )
+            ?.focus();
+        }
+      );
+
+      return;
+
+    }
+
+    if (
+      !command &&
+      event.key.toLowerCase() === "i" &&
+      hasSelection()
+    ) {
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+
+      $("iconSearch").focus();
+      $("iconSearch").select();
+      return;
+
+    }
+
+    if (command && event.key.toLowerCase() === "c") {
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+
+      const channelButton =
+        target.closest?.(".channel");
+
+      if (channelButton) {
+
+        const buttons =
+          [...document.querySelectorAll(".channel")];
+
+        const index =
+          buttons.indexOf(channelButton);
+
+        if (index >= 0 && !selectedChannels.has(index + 1)) {
+          setSelection([index + 1], index + 1);
+          lastClickedChannel = index + 1;
+        }
+
+      }
+
+      copySelectedChannels();
+      return;
+
+    }
+
+    if (command && event.key.toLowerCase() === "v") {
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+
+      await pasteSelectedChannels();
+      return;
+
+    }
+
+    if (event.key === " " || event.code === "Space") {
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+
+      const channelButton =
+        target.closest?.(".channel");
+
+      if (channelButton) {
+
+        const buttons =
+          [...document.querySelectorAll(".channel")];
+
+        const index =
+          buttons.indexOf(channelButton);
+
+        if (index >= 0) {
+
+          const number = index + 1;
+
+          if (!selectedChannels.has(number)) {
+            setSelection([number], number);
+            lastClickedChannel = number;
+          }
+
+        }
+
+      }
+
+      if (hasSelection()) {
+        toggleSelectedChannels(false);
+      }
+
+      return;
+
+    }
+
+    switch (event.key) {
+
+      case "ArrowLeft":
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        moveChannelFocus(-1);
+        return;
+
+      case "ArrowRight":
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        moveChannelFocus(1);
+        return;
+
+      case "ArrowUp":
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        moveChannelFocus(-8);
+        return;
+
+      case "ArrowDown":
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        moveChannelFocus(8);
+        return;
+
+    }
+
+  }
+);
+
+$("colorGrid")
+  .addEventListener(
+    "keydown",
+    event => {
+
+      const buttons =
+        [
+          ...$("colorGrid")
+            .querySelectorAll(
+              ".color-option"
+            )
+        ];
+
+      const current =
+        document.activeElement;
+
+      const index =
+        buttons.indexOf(
+          current
+        );
+
+      if (
+        index < 0
+      ) {
+
+        return;
+
+      }
+
+      let next =
+        index;
+
+      const columns =
+        window.matchMedia(
+          "(max-width: 520px)"
+        ).matches
+          ? 3
+          : 5;
+
+      switch (
+        event.key
+      ) {
+
+        case "ArrowLeft":
+
+          next =
+            Math.max(
+              0,
+              index - 1
+            );
+
+          break;
+
+        case "ArrowRight":
+
+          next =
+            Math.min(
+              buttons.length - 1,
+              index + 1
+            );
+
+          break;
+
+        case "ArrowUp":
+
+          next =
+            Math.max(
+              0,
+              index - columns
+            );
+
+          break;
+
+        case "ArrowDown":
+
+          next =
+            Math.min(
+              buttons.length - 1,
+              index + columns
+            );
+
+          break;
+
+        default:
+
+          return;
+
+      }
+
+      event.preventDefault();
+
+      event.stopPropagation();
+
+      buttons[
+        next
+      ].focus();
+
+    }
+  );
+
+$("iconPicker")
+  .addEventListener(
+    "keydown",
+    event => {
+
+      const buttons =
+        [
+          ...$("iconPicker")
+            .querySelectorAll(
+              ".icon-option"
+            )
+        ];
+
+      const current =
+        document.activeElement;
+
+      const index =
+        buttons.indexOf(
+          current
+        );
+
+      if (
+        index < 0
+      ) {
+
+        return;
+
+      }
+
+      let next =
+        index;
+
+      const columns =
+        window.matchMedia(
+          "(max-width: 520px)"
+        ).matches
+          ? 6
+          : 8;
+
+      switch (
+        event.key
+      ) {
+
+        case "ArrowLeft":
+
+          next =
+            Math.max(
+              0,
+              index - 1
+            );
+
+          break;
+
+        case "ArrowRight":
+
+          next =
+            Math.min(
+              buttons.length - 1,
+              index + 1
+            );
+
+          break;
+
+        case "ArrowUp":
+
+          next =
+            Math.max(
+              0,
+              index - columns
+            );
+
+          break;
+
+        case "ArrowDown":
+
+          next =
+            Math.min(
+              buttons.length - 1,
+              index + columns
+            );
+
+          break;
+
+        default:
+
+          return;
+
+      }
+
+      event.preventDefault();
+
+      event.stopPropagation();
+
+      buttons[
+        next
+      ].focus();
+
+    }
+  );
+
+renderGrid();
+
+renderEditor();
+
+generateScript();
+
+</script>
+<script src="../header.js"></script>
+<script src="../menu.js"></script>
+
+</body>
+</html>
