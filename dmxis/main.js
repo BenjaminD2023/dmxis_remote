@@ -85,13 +85,13 @@ function changeMode(mode) {
     historyIndex = -1;
 }
 
-function changePage(page) {
+function changePage(page, sendInitialValues = true) {
     if (page >= 0 && page < TOTAL_PAGES) {
         currentPage = page;
         selectedChannels = new Set();
         lastSelectedChannel = null;
         updatePageButtons();
-        createFaders();
+        createFaders(sendInitialValues);
         createFixtureLabelGrid();
     }
 }
@@ -309,7 +309,8 @@ function undo() {
         entry.channelChanges.forEach((change, idx) => {
             channelChanges.set(idx, {
                 initialValue: faderValues[idx],
-                targetValue: change.initialValue
+                targetValue: change.initialValue,
+                discrete: change.discrete
             });
         });
         entry.labelChanges.forEach((change, fixtureStart) => {
@@ -321,7 +322,7 @@ function undo() {
         });
     }
 
-    fadeChannelsAndLabels(channelChanges, labelChanges, entry.fixtures.map(f => ({ from: f })));
+    fadeChannelsAndLabels(channelChanges, labelChanges, entry.fixtures.map(f => ({ from: f })), undefined, entry.type !== 'color');
     historyIndex--;
 }
 
@@ -358,7 +359,8 @@ function redo() {
         entry.channelChanges.forEach((change, idx) => {
             channelChanges.set(idx, {
                 initialValue: faderValues[idx],
-                targetValue: change.targetValue
+                targetValue: change.targetValue,
+                discrete: change.discrete
             });
         });
         entry.labelChanges.forEach((change, fixtureStart) => {
@@ -369,7 +371,7 @@ function redo() {
         });
     }
 
-    fadeChannelsAndLabels(channelChanges, labelChanges, entry.fixtures.map(f => ({ from: f })));
+    fadeChannelsAndLabels(channelChanges, labelChanges, entry.fixtures.map(f => ({ from: f })), undefined, entry.type !== 'color');
 }
 
 function blackout() {
@@ -501,7 +503,7 @@ function blackoutSelectedFixtures() {
     });
 }
 
-function fadeChannelsAndLabels(channelChanges, labelChanges, fixtures, callback) {
+function fadeChannelsAndLabels(channelChanges, labelChanges, fixtures, callback, sendInitialValues = true) {
     const FADE_DURATION = 1000; // 1 second fade
     const STEPS = 20; // Number of steps for smooth fade
     const STEP_INTERVAL = FADE_DURATION / STEPS;
@@ -520,8 +522,9 @@ function fadeChannelsAndLabels(channelChanges, labelChanges, fixtures, callback)
     function fadeStep() {
         if (step <= STEPS) {
             const progress = step / STEPS;
-            channelChanges.forEach(({ initialValue, targetValue }, idx) => {
-                const newValue = Math.round(initialValue + (targetValue - initialValue) * progress);
+            channelChanges.forEach(({ initialValue, targetValue, discrete }, idx) => {
+                if (discrete && step > 0) return;
+                const newValue = discrete ? targetValue : Math.round(initialValue + (targetValue - initialValue) * progress);
                 faderValues[idx] = newValue;
                 updateSliderState(idx, newValue);
                 const midiChannel = Math.floor(idx / 128);
@@ -547,7 +550,7 @@ function fadeChannelsAndLabels(channelChanges, labelChanges, fixtures, callback)
                 }
             });
 
-            createFaders();
+            createFaders(sendInitialValues);
             if (!labelAnimationFrameId) {
                 labelAnimationFrameId = requestAnimationFrame(updateLabelBackgrounds);
             }
@@ -735,7 +738,7 @@ function handleChannelSelection(channel, event) {
     updateFixtureGroupPositions();
 }
 
-function createFaders() {
+function createFaders(sendInitialValues = true) {
     sliderStates.clear();
     const grid = document.getElementById('faderGrid');
     grid.innerHTML = '';
@@ -797,7 +800,9 @@ function createFaders() {
 
             const midiChannel = Math.floor(faderIndex / 128);
             const ccNumber = faderIndex % 128;
-            sendMIDICC(midiChannel, ccNumber, faderValues[faderIndex]); // Send initial MIDI value
+            if (sendInitialValues) {
+                sendMIDICC(midiChannel, ccNumber, faderValues[faderIndex]);
+            }
 
             sliderStates.set(fader.id, {
                 current: faderValues[faderIndex],

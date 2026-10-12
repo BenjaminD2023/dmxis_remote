@@ -40,6 +40,32 @@ const COLORS = [
     { name: 'White', hex: '#FFFFFF', rgb: [127, 115, 70, 127] }
 ];
 
+// Saved color presets from DMXIS's "Gobos - ALL" bank, converted to MIDI
+// with Math.round(normalizedValue * 127). The Macros/Colors channel is offset 0.
+const GOBO_COLOR_MACROS = Object.freeze({
+    'Warm White': 56,
+    'White': 0,
+    'Cool White': 27,
+    'Red': 7,
+    'Orange': 11,
+    'Yellow': 41,
+    'Green': 16,
+    'Blue': 66,
+    'Indigo': 50,
+    'Hot Pink': 46
+});
+
+function getColorTargetFixtures() {
+    return getCurrentModeFixtures().filter(f => selectedFixtures.size > 0
+        ? selectedFixtures.has(f.from)
+        : ['LED', 'Par', 'Par2', 'Uplighting'].includes(f.type));
+}
+
+function isColorAvailableForFixtures(colorName, fixtures) {
+    return !fixtures.some(f => f.type === 'Motorized Par') ||
+        Object.prototype.hasOwnProperty.call(GOBO_COLOR_MACROS, colorName);
+}
+
 function createColorModal() {
     const modal = document.createElement('div');
     modal.className = 'color-modal';
@@ -68,7 +94,8 @@ function createColorModal() {
             e.preventDefault();
         } else if (e.key === 'Enter') {
             e.preventDefault();
-            const selectedResult = results.querySelector('.color-result.selected');
+            e.stopPropagation();
+            const selectedResult = results.querySelector('.color-result.selected:not(.disabled)');
             if (selectedResult) {
                 const colorName = selectedResult.dataset.color;
                 applyColor(colorName);
@@ -96,22 +123,32 @@ function createColorModal() {
 
 function updateColorResults(query, results) {
     results.innerHTML = '';
-    results.dataset.selectedIndex = '0';
+    results.dataset.selectedIndex = '-1';
     const filteredColors = query
         ? COLORS.filter(c => c.name.toLowerCase().includes(query))
         : COLORS;
+    const fixtures = getColorTargetFixtures();
+    let enabledCount = 0;
 
-    filteredColors.forEach((color, index) => {
+    filteredColors.forEach(color => {
+        const available = isColorAvailableForFixtures(color.name, fixtures);
         const result = document.createElement('div');
-        result.className = 'color-result';
+        result.className = available ? 'color-result' : 'color-result disabled';
         result.dataset.color = color.name;
-        result.tabIndex = 0;
+        result.setAttribute('role', 'button');
+        result.setAttribute('aria-disabled', String(!available));
+        result.tabIndex = available ? 0 : -1;
         result.innerHTML = `
             <span class="color-swatch" style="background-color: ${color.hex};"></span>
             ${color.name}
+            ${available ? '' : '<span class="color-availability">Unavailable for gobos</span>'}
         `;
-        if (index === 0) {
-            result.classList.add('selected');
+        if (available) {
+            if (enabledCount === 0) {
+                result.classList.add('selected');
+                results.dataset.selectedIndex = '0';
+            }
+            enabledCount++;
         }
         results.appendChild(result);
     });
@@ -177,12 +214,10 @@ function applyColor(colorName) {
     const white = color.rgb[3] || 0;
     const warm = color.rgb[4] || 0;
 
-    // Gobo fixtures use color/gobo macros rather than RGB channels.
-    const fixtures = getCurrentModeFixtures().filter(f =>
-        f.type !== 'Motorized Par' && (selectedFixtures.size > 0
-            ? selectedFixtures.has(f.from)
-            : ['LED', 'Par', 'Par2', 'Uplighting'].includes(f.type))
-    );
+    const fixtures = getColorTargetFixtures();
+    if (!isColorAvailableForFixtures(colorName, fixtures)) {
+        return;
+    }
 
     if (fixtures.length === 0) {
         console.log('No fixtures selected or available for color change');
@@ -198,6 +233,7 @@ function applyColor(colorName) {
     const STEPS = 10; // Number of steps for smooth fade
     const STEP_INTERVAL = FADE_DURATION / STEPS;
     const changes = new Map(); // Map of idx to { initialValue, targetValue }
+    const macroChanges = new Map();
     const historyEntry = {
         type: 'color',
         colorName,
@@ -208,52 +244,65 @@ function applyColor(colorName) {
 
     fixtures.forEach(fixture => {
         const params = fixtureParameters[fixture.type];
-        const shutterParamIdx = params.findIndex(p => p.name === 'Shutter');
-        const redIdx = params.findIndex(p => p.name === 'Red') !== -1 ? fixture.from + params.findIndex(p => p.name === 'Red') - 1 : -1;
-        const greenIdx = params.findIndex(p => p.name === 'Green') !== -1 ? fixture.from + params.findIndex(p => p.name === 'Green') - 1 : -1;
-        const blueIdx = params.findIndex(p => p.name === 'Blue') !== -1 ? fixture.from + params.findIndex(p => p.name === 'Blue') - 1 : -1;
-        const whiteIdx = params.findIndex(p => p.name === 'White') !== -1 ? fixture.from + params.findIndex(p => p.name === 'White') - 1 : -1;
-        const warmIdx = params.findIndex(p => p.name === 'Warm') !== -1 ? fixture.from + params.findIndex(p => p.name === 'Warm') - 1 : -1;
-        const shutterIdx = shutterParamIdx !== -1 ? fixture.from + shutterParamIdx - 1 : -1;
+        if (fixture.type === 'Motorized Par') {
+            const macroParamIdx = params.findIndex(p => p.name === 'Colors');
+            const idx = fixture.from + macroParamIdx - 1;
+            if (macroParamIdx < 0 || idx >= fixture.to) return;
+            const change = {
+                initialValue: faderValues[idx] || 0,
+                targetValue: GOBO_COLOR_MACROS[colorName],
+                discrete: true
+            };
+            macroChanges.set(idx, change);
+            historyEntry.channelChanges.set(idx, change);
+        } else {
+            const shutterParamIdx = params.findIndex(p => p.name === 'Shutter');
+            const redIdx = params.findIndex(p => p.name === 'Red') !== -1 ? fixture.from + params.findIndex(p => p.name === 'Red') - 1 : -1;
+            const greenIdx = params.findIndex(p => p.name === 'Green') !== -1 ? fixture.from + params.findIndex(p => p.name === 'Green') - 1 : -1;
+            const blueIdx = params.findIndex(p => p.name === 'Blue') !== -1 ? fixture.from + params.findIndex(p => p.name === 'Blue') - 1 : -1;
+            const whiteIdx = params.findIndex(p => p.name === 'White') !== -1 ? fixture.from + params.findIndex(p => p.name === 'White') - 1 : -1;
+            const warmIdx = params.findIndex(p => p.name === 'Warm') !== -1 ? fixture.from + params.findIndex(p => p.name === 'Warm') - 1 : -1;
+            const shutterIdx = shutterParamIdx !== -1 ? fixture.from + shutterParamIdx - 1 : -1;
 
-        let targetWhite = white;
-        let targetWarm = warm;
-        let targetShutter = 127; // Default shutter to full
+            let targetWhite = white;
+            let targetWarm = warm;
+            let targetShutter = 127; // Default shutter to full
 
-        // Special handling for "Warm White" on Flood and Auditorium Flood
-        if (colorName === 'Warm White' && ['Flood', 'Auditorium Flood'].includes(fixture.type)) {
-            targetWhite = 20; // Set white to 20
-            targetWarm = 127; // Set warm to full
-            targetShutter = 127; // Shutter to full
+            // Special handling for "Warm White" on Flood and Auditorium Flood
+            if (colorName === 'Warm White' && ['Flood', 'Auditorium Flood'].includes(fixture.type)) {
+                targetWhite = 20; // Set white to 20
+                targetWarm = 127; // Set warm to full
+                targetShutter = 127; // Shutter to full
+            }
+
+            const indices = [];
+            if (shutterIdx >= fixture.from - 1 && shutterIdx < fixture.to) indices.push(shutterIdx);
+            if (redIdx >= fixture.from - 1 && redIdx < fixture.to) indices.push(redIdx);
+            if (greenIdx >= fixture.from - 1 && greenIdx < fixture.to) indices.push(greenIdx);
+            if (blueIdx >= fixture.from - 1 && blueIdx < fixture.to) indices.push(blueIdx);
+            if (whiteIdx >= fixture.from - 1 && whiteIdx < fixture.to) indices.push(whiteIdx);
+            if (warmIdx >= fixture.from - 1 && warmIdx < fixture.to) indices.push(warmIdx);
+
+            indices.forEach(idx => {
+                let targetValue = 0;
+                if (idx === shutterIdx) targetValue = targetShutter;
+                else if (idx === redIdx) targetValue = red;
+                else if (idx === greenIdx) targetValue = green;
+                else if (idx === blueIdx) targetValue = blue;
+                else if (idx === whiteIdx) targetValue = targetWhite;
+                else if (idx === warmIdx) targetValue = targetWarm;
+
+                changes.set(idx, {
+                    initialValue: faderValues[idx] || 0,
+                    targetValue
+                });
+
+                historyEntry.channelChanges.set(idx, {
+                    initialValue: faderValues[idx] || 0,
+                    targetValue
+                });
+            });
         }
-
-        const indices = [];
-        if (shutterIdx >= fixture.from - 1 && shutterIdx < fixture.to) indices.push(shutterIdx);
-        if (redIdx >= fixture.from - 1 && redIdx < fixture.to) indices.push(redIdx);
-        if (greenIdx >= fixture.from - 1 && greenIdx < fixture.to) indices.push(greenIdx);
-        if (blueIdx >= fixture.from - 1 && blueIdx < fixture.to) indices.push(blueIdx);
-        if (whiteIdx >= fixture.from - 1 && whiteIdx < fixture.to) indices.push(whiteIdx);
-        if (warmIdx >= fixture.from - 1 && warmIdx < fixture.to) indices.push(warmIdx);
-
-        indices.forEach(idx => {
-            let targetValue = 0;
-            if (idx === shutterIdx) targetValue = targetShutter;
-            else if (idx === redIdx) targetValue = red;
-            else if (idx === greenIdx) targetValue = green;
-            else if (idx === blueIdx) targetValue = blue;
-            else if (idx === whiteIdx) targetValue = targetWhite;
-            else if (idx === warmIdx) targetValue = targetWarm;
-
-            changes.set(idx, {
-                initialValue: faderValues[idx] || 0,
-                targetValue
-            });
-
-            historyEntry.channelChanges.set(idx, {
-                initialValue: faderValues[idx] || 0,
-                targetValue
-            });
-        });
 
         historyEntry.fixtures.push(fixture.from);
 
@@ -276,10 +325,18 @@ function applyColor(colorName) {
         }
     });
 
+    // A macro selects a discrete color. Jump directly to it rather than
+    // fading through other colors; leave the gobo's shutter and motion alone.
+    macroChanges.forEach(({ targetValue }, idx) => {
+        faderValues[idx] = targetValue;
+        updateSliderState(idx, targetValue);
+        sendMIDICC(Math.floor(idx / 128), idx % 128, targetValue);
+    });
+
     if (fixtures.length > 0) {
         const targetPage = Math.floor((fixtures[0].from - 1) / FADERS_PER_PAGE);
         if (targetPage !== currentPage) {
-            changePage(targetPage);
+            changePage(targetPage, false);
         }
     }
 
@@ -297,7 +354,7 @@ function applyColor(colorName) {
                 sendMIDICC(midiChannel, ccNumber, newValue);
             });
 
-            createFaders();
+            createFaders(false);
             if (!animationFrameId) {
                 animationFrameId = requestAnimationFrame(updateSliders);
             }
@@ -309,7 +366,12 @@ function applyColor(colorName) {
         }
     }
 
-    fadeStep();
+    if (changes.size > 0) {
+        fadeStep();
+    } else {
+        createFaders(false);
+        saveToHistory(historyEntry);
+    }
 
     updateFixtureLabelGrid();
 
