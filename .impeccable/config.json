@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "dmxis/index.html"
+        ],
+        "createdAt": "2026-10-12T10:48:56.514Z",
+        "reason": "Agent review: positioned fixture heading strips and fader symbols are bounded inside the fader grid; fixed search and color popups attach directly to body and do not need to escape the split containers."
+      }
+    ]
+  }
+}

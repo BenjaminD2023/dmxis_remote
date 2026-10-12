@@ -177,10 +177,11 @@ function applyColor(colorName) {
     const white = color.rgb[3] || 0;
     const warm = color.rgb[4] || 0;
 
+    // Gobo fixtures use color/gobo macros rather than RGB channels.
     const fixtures = getCurrentModeFixtures().filter(f =>
-        selectedFixtures.size > 0
+        f.type !== 'Motorized Par' && (selectedFixtures.size > 0
             ? selectedFixtures.has(f.from)
-            : ['LED', 'Par', 'Par2', 'Uplighting'].includes(f.type)
+            : ['LED', 'Par', 'Par2', 'Uplighting'].includes(f.type))
     );
 
     if (fixtures.length === 0) {
