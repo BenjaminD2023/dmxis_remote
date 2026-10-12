@@ -56,36 +56,21 @@ function changeMode(mode) {
     selectedChannels = new Set();
     lastSelectedChannel = null;
     selectedFixtures = new Set();
-    // Reset faderValues for Motorized Pars to default blackout values
-    const fixtures = getCurrentModeFixtures();
-    fixtures.forEach(fixture => {
-        if (fixture.type === 'Motorized Par') {
-            const params = fixtureParameters[fixture.type];
-            for (let ch = fixture.from; ch <= fixture.to; ch++) {
-                const idx = ch - 1;
-                const paramIndex = (ch - fixture.from) % params.length;
-                const paramName = params[paramIndex].name;
-                faderValues[idx] = MOTORIZED_PAR_BLACKOUT_VALUES[paramName] || 0;
-            }
-        } else {
-            for (let ch = fixture.from; ch <= fixture.to; ch++) {
-                const idx = ch - 1;
-                faderValues[idx] = 0;
-            }
-        }
-    });
     const grid = document.getElementById('faderGrid');
     grid.querySelectorAll('.fixture-group').forEach(group => group.remove());
     createFaders();
     createMacroButtons();
     createFixtureLabelGrid();
+    if (typeof refreshSyncedFixtureColors === 'function') {
+        refreshSyncedFixtureColors(new Set(faderValues.map((_, idx) => idx)));
+    }
     toggleMenu();
     // Clear history when changing mode
     history = [];
     historyIndex = -1;
 }
 
-function changePage(page, sendInitialValues = true) {
+function changePage(page, sendInitialValues = false) {
     if (page >= 0 && page < TOTAL_PAGES) {
         currentPage = page;
         selectedChannels = new Set();
@@ -157,13 +142,6 @@ function selectMIDIOutput(outputName) {
             if (selectedOutput) {
                 midiOutput = selectedOutput;
                 console.log(`MIDI: Switched to output "${outputName}"`);
-                // Resend current fader values to the new MIDI output
-                for (let i = 0; i < faderValues.length; i++) {
-                    const value = faderValues[i];
-                    const midiChannel = Math.floor(i / 128);
-                    const ccNumber = i % 128;
-                    sendMIDICC(midiChannel, ccNumber, value);
-                }
                 updateMIDISelectionUI();
             } else {
                 console.error(`MIDI: Output "${outputName}" not found`);
@@ -187,6 +165,9 @@ function updateMIDISelectionUI() {
 
 function sendMIDICC(midiChannel, cc, value) {
     if (midiOutput) {
+        if (typeof recordLocalChannelWrite === 'function') {
+            recordLocalChannelWrite(midiChannel * 128 + cc, value);
+        }
         midiOutput.send([0xB0 + midiChannel, cc, value]);
     }
 }
@@ -322,7 +303,7 @@ function undo() {
         });
     }
 
-    fadeChannelsAndLabels(channelChanges, labelChanges, entry.fixtures.map(f => ({ from: f })), undefined, entry.type !== 'color');
+    fadeChannelsAndLabels(channelChanges, labelChanges, entry.fixtures.map(f => ({ from: f })));
     historyIndex--;
 }
 
@@ -371,7 +352,7 @@ function redo() {
         });
     }
 
-    fadeChannelsAndLabels(channelChanges, labelChanges, entry.fixtures.map(f => ({ from: f })), undefined, entry.type !== 'color');
+    fadeChannelsAndLabels(channelChanges, labelChanges, entry.fixtures.map(f => ({ from: f })));
 }
 
 function blackout() {
@@ -503,7 +484,7 @@ function blackoutSelectedFixtures() {
     });
 }
 
-function fadeChannelsAndLabels(channelChanges, labelChanges, fixtures, callback, sendInitialValues = true) {
+function fadeChannelsAndLabels(channelChanges, labelChanges, fixtures, callback, sendInitialValues = false) {
     const FADE_DURATION = 1000; // 1 second fade
     const STEPS = 20; // Number of steps for smooth fade
     const STEP_INTERVAL = FADE_DURATION / STEPS;
@@ -738,7 +719,7 @@ function handleChannelSelection(channel, event) {
     updateFixtureGroupPositions();
 }
 
-function createFaders(sendInitialValues = true) {
+function createFaders(sendInitialValues = false) {
     sliderStates.clear();
     const grid = document.getElementById('faderGrid');
     grid.innerHTML = '';
@@ -860,6 +841,7 @@ function createFaders(sendInitialValues = true) {
     }
 
     requestAnimationFrame(() => updateFixtureGroupPositions());
+    if (typeof refreshSyncValueLabels === 'function') refreshSyncValueLabels();
 }
 
 function updatePageButtons() {

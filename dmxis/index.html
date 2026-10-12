@@ -45,6 +45,13 @@
             z-index: 1000;
         }
 
+        .sync-status {
+            color: #aaa;
+            font-size: 0.8rem;
+            max-width: 14rem;
+            text-align: right;
+        }
+
         .menu {
         position: fixed;
         top: 0;
@@ -518,7 +525,7 @@
     <div class="header">
         <button class="hamburger" onclick="toggleMenu()">☰</button>
         <h1 class="title" id="appTitle">Black Box Lights</h1>
-        <div style="width: 2.5vw;"></div>
+        <span class="sync-status" id="dmxisSyncStatus" role="status" title="Receives current DMXIS levels through the local OSC sync server.">DMXIS sync: connecting…</span>
     </div>
     <div class="menu" id="menu">
         <div class="mode-section">
@@ -555,5 +562,6 @@
     <script src="search.js"></script>
     <script src="colors.js"></script>
     <script src="sorting.js"></script>
+    <script src="sync.js"></script>
 </body>
 </html>

@@ -1,3 +1,6 @@
+// DMXIS feedback must not replace the values we temporarily use for a flash.
+const activeFlashChannels = new Set();
+
 document.addEventListener('keydown', function(event) {
     const activeElement = document.activeElement;
     const isSlider = activeElement.classList.contains('fader');
@@ -339,6 +342,9 @@ document.addEventListener('keydown', function(event) {
     // Spacebar: Flash selected fixtures
     if (event.key === ' ' && !isValueInput) {
         event.preventDefault();
+        // Holding Space used to start overlapping flashes, whose snapshots
+        // captured a previous flash's temporary white/shutter values.
+        if (event.repeat || activeFlashChannels.size > 0) return;
         let targetChannels = [];
 
         if (selectedFixtures.size > 0 && selectedChannels.size === 0) {
@@ -365,10 +371,18 @@ document.addEventListener('keydown', function(event) {
         if (targetChannels.length === 0) return;
 
         const originalValues = new Map();
-        targetChannels.forEach(ch => {
+        new Set(targetChannels).forEach(ch => {
             const idx = ch - 1;
-            originalValues.set(ch, faderValues[idx]);
+            if (idx < 0 || idx >= faderValues.length) return;
+            // Restore the underlying fader, not a modulated OSC output sample.
+            const originalValue = typeof getFlashRestoreValue === 'function'
+                ? getFlashRestoreValue(idx) : faderValues[idx];
+            if (!Number.isInteger(originalValue) || originalValue < 0 || originalValue > 127) return;
+            originalValues.set(idx, originalValue);
+            activeFlashChannels.add(idx);
         });
+
+        if (originalValues.size === 0) return;
 
         const flashSequence = [
             { value: 0, delay: 100 },
@@ -377,78 +391,48 @@ document.addEventListener('keydown', function(event) {
             { value: 127, delay: 100 }
         ];
 
+        function applyFlashValue(idx, value) {
+            faderValues[idx] = value;
+            const sliderId = `fader-${idx}`;
+            const midiChannel = Math.floor(idx / 128);
+            const ccNumber = idx % 128;
+            const state = sliderStates.get(sliderId);
+            if (state) {
+                state.current = value;
+                state.target = value;
+            } else {
+                sliderStates.set(sliderId, {
+                    current: value,
+                    target: value,
+                    midiChannel,
+                    ccNumber
+                });
+            }
+
+            const slider = document.getElementById(sliderId);
+            if (slider) {
+                slider.value = value;
+                const valueInput = slider.parentElement.querySelector('.fader-value');
+                if (valueInput && !valueInput.classList.contains('editable')) {
+                    valueInput.value = Math.round((value / 127) * 100);
+                }
+            }
+            // Colors and other discrete channels must jump back directly.
+            sendMIDICC(midiChannel, ccNumber, value);
+        }
+
         let step = 0;
         function executeFlash() {
             if (step < flashSequence.length) {
                 const { value } = flashSequence[step];
-                targetChannels.forEach(ch => {
-                    const idx = ch - 1;
-                    faderValues[idx] = value;
-                    const sliderId = `fader-${idx}`;
-                    const midiChannel = Math.floor(idx / 128);
-                    const ccNumber = idx % 128;
-
-                    if (sliderStates.has(sliderId)) {
-                        const state = sliderStates.get(sliderId);
-                        state.current = value;
-                        state.target = value;
-                    } else {
-                        sliderStates.set(sliderId, {
-                            current: value,
-                            target: value,
-                            midiChannel: midiChannel,
-                            ccNumber: ccNumber
-                        });
-                    }
-
-                    const slider = document.getElementById(sliderId);
-                    if (slider) {
-                        slider.value = value;
-                        const vi = slider.parentElement.querySelector('.fader-value');
-                        if (vi && !vi.classList.contains('editable')) {
-                            vi.value = Math.round((value / 127) * 100);
-                        }
-                    }
-
-                    sendMIDICC(midiChannel, ccNumber, value);
-                });
+                originalValues.forEach((_, idx) => applyFlashValue(idx, value));
                 setTimeout(() => {
                     step++;
                     executeFlash();
                 }, flashSequence[step].delay);
             } else {
-                targetChannels.forEach(ch => {
-                    const idx = ch - 1;
-                    const originalValue = originalValues.get(ch);
-                    faderValues[idx] = originalValue;
-                    const sliderId = `fader-${idx}`;
-                    const midiChannel = Math.floor(idx / 128);
-                    const ccNumber = idx % 128;
-
-                    if (sliderStates.has(sliderId)) {
-                        const state = sliderStates.get(sliderId);
-                        state.current = originalValue;
-                        state.target = originalValue;
-                    } else {
-                        sliderStates.set(sliderId, {
-                            current: originalValue,
-                            target: originalValue,
-                            midiChannel: midiChannel,
-                            ccNumber: ccNumber
-                        });
-                    }
-
-                    const slider = document.getElementById(sliderId);
-                    if (slider) {
-                        slider.value = originalValue;
-                        const vi = slider.parentElement.querySelector('.fader-value');
-                        if (vi && !vi.classList.contains('editable')) {
-                            vi.value = Math.round((originalValue / 127) * 100);
-                        }
-                    }
-
-                    sendMIDICC(midiChannel, ccNumber, originalValue);
-                });
+                originalValues.forEach((originalValue, idx) => applyFlashValue(idx, originalValue));
+                activeFlashChannels.clear();
             }
         }
         executeFlash();
