@@ -107,7 +107,7 @@ const fixtureParameters = {
         { name: 'Warm', abbr: '🟡' },
         { name: 'Strobe', abbr: '⚡' },
     ],
-    'Autidorium LED': [
+    'Auditorium LED': [
         { name: 'Shutter', abbr: '(💡)' },
         { name: 'Strobe', abbr: '⚡' },
         { name: 'Macros', abbr: '▶️' },

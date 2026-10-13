@@ -5,6 +5,10 @@ const FADERS_PER_PAGE = 32;
 const TOTAL_PAGES = 16;
 const faderValues = new Array(TOTAL_PAGES * FADERS_PER_PAGE).fill(0);
 const sliderStates = new Map();
+// A fade's destination is separate from its intermediate output. A flash can
+// borrow the channel without losing the user's latest color or fader setting.
+const pendingChannelIntents = new Map();
+let nextChannelIntentGeneration = 0;
 let animationFrameId = null;
 let labelBackgroundStates = new Map();
 let labelAnimationFrameId = null;
@@ -50,6 +54,8 @@ function closeMenu() {
 }
 
 function changeMode(mode) {
+    if (typeof stopOscillations === 'function') stopOscillations();
+    if (typeof cancelActiveFlash === 'function') cancelActiveFlash();
     currentMode = mode;
     document.getElementById('appTitle').textContent = `${mode} Lights`;
     currentHighlightedFixture = null;
@@ -140,6 +146,8 @@ function selectMIDIOutput(outputName) {
             const outputs = Array.from(midiAccess.outputs.values());
             const selectedOutput = outputs.find(output => output.name === outputName);
             if (selectedOutput) {
+                if (typeof stopOscillations === 'function') stopOscillations();
+                if (typeof cancelActiveFlash === 'function') cancelActiveFlash();
                 midiOutput = selectedOutput;
                 console.log(`MIDI: Switched to output "${outputName}"`);
                 updateMIDISelectionUI();
@@ -163,9 +171,52 @@ function updateMIDISelectionUI() {
     });
 }
 
-function sendMIDICC(midiChannel, cc, value) {
+function isChannelFlashing(idx) {
+    return typeof activeFlashChannels !== 'undefined' && activeFlashChannels.has(idx);
+}
+
+function beginChannelIntent(idx, value, kind = 'fade') {
+    const generation = ++nextChannelIntentGeneration;
+    pendingChannelIntents.set(idx, { value, generation, kind });
+    if (isChannelFlashing(idx)) activeFlashRestores.set(idx, value);
+    return generation;
+}
+
+function finishChannelIntent(idx, generation) {
+    if (pendingChannelIntents.get(idx)?.generation === generation && !isChannelFlashing(idx)) {
+        pendingChannelIntents.delete(idx);
+    }
+}
+
+function getIntendedChannelValue(idx) {
+    if (typeof isOscillationChannelOwned === 'function' && isOscillationChannelOwned(idx)) {
+        return getOscillationBaseValue(idx);
+    }
+    const intent = pendingChannelIntents.get(idx);
+    if (intent) return intent.value;
+    const state = sliderStates.get(`fader-${idx}`);
+    if (state && state.current !== state.target) return state.target;
+    return typeof getFlashRestoreValue === 'function' ? getFlashRestoreValue(idx) : faderValues[idx];
+}
+
+function getRestingChannelValue(idx) {
+    if (isChannelFlashing(idx)) return activeFlashRestores.get(idx);
+    if (typeof isOscillationChannelOwned === 'function' && isOscillationChannelOwned(idx)) {
+        return getOscillationBaseValue(idx);
+    }
+    return faderValues[idx];
+}
+
+function applyChannelIntentStep(idx, value, generation) {
+    if (pendingChannelIntents.get(idx)?.generation !== generation || isChannelFlashing(idx)) return;
+    faderValues[idx] = value;
+    updateSliderState(idx, value);
+    sendMIDICC(Math.floor(idx / 128), idx % 128, value);
+}
+
+function sendMIDICC(midiChannel, cc, value, { transient = false } = {}) {
     if (midiOutput) {
-        if (typeof recordLocalChannelWrite === 'function') {
+        if (!transient && typeof recordLocalChannelWrite === 'function') {
             recordLocalChannelWrite(midiChannel * 128 + cc, value);
         }
         midiOutput.send([0xB0 + midiChannel, cc, value]);
@@ -177,7 +228,13 @@ function updateSliders() {
 
     for (const [sliderId, state] of sliderStates) {
         const idx = parseInt(sliderId.replace('fader-', ''));
+        if (isChannelFlashing(idx)) continue;
         if (state.current !== state.target) {
+            let intent = pendingChannelIntents.get(idx);
+            if (!intent || intent.value !== state.target) {
+                beginChannelIntent(idx, state.target, 'slider');
+                intent = pendingChannelIntents.get(idx);
+            }
             const diff = state.target - state.current;
             state.current += diff * 0.08; // Smoothing factor for all slider movements
 
@@ -199,6 +256,10 @@ function updateSliders() {
             }
 
             needsUpdate = true;
+            if (state.current === state.target) finishChannelIntent(idx, intent.generation);
+        } else {
+            const intent = pendingChannelIntents.get(idx);
+            if (intent?.kind === 'slider') finishChannelIntent(idx, intent.generation);
         }
     }
 
@@ -269,14 +330,14 @@ function undo() {
         entry.channels.forEach(({ channel, oldValue }) => {
             const idx = channel - 1;
             channelChanges.set(idx, {
-                initialValue: faderValues[idx],
+                initialValue: getRestingChannelValue(idx),
                 targetValue: oldValue
             });
         });
     } else if (entry.type === 'paste') {
         entry.channelChanges.forEach((change, idx) => {
             channelChanges.set(idx, {
-                initialValue: faderValues[idx],
+                initialValue: getRestingChannelValue(idx),
                 targetValue: change.initialValue
             });
         });
@@ -289,7 +350,7 @@ function undo() {
     } else if (entry.type === 'color') {
         entry.channelChanges.forEach((change, idx) => {
             channelChanges.set(idx, {
-                initialValue: faderValues[idx],
+                initialValue: getRestingChannelValue(idx),
                 targetValue: change.initialValue,
                 discrete: change.discrete
             });
@@ -319,14 +380,14 @@ function redo() {
         entry.channels.forEach(({ channel, newValue }) => {
             const idx = channel - 1;
             channelChanges.set(idx, {
-                initialValue: faderValues[idx],
+                initialValue: getRestingChannelValue(idx),
                 targetValue: newValue
             });
         });
     } else if (entry.type === 'paste') {
         entry.channelChanges.forEach((change, idx) => {
             channelChanges.set(idx, {
-                initialValue: faderValues[idx],
+                initialValue: getRestingChannelValue(idx),
                 targetValue: change.targetValue
             });
         });
@@ -339,7 +400,7 @@ function redo() {
     } else if (entry.type === 'color') {
         entry.channelChanges.forEach((change, idx) => {
             channelChanges.set(idx, {
-                initialValue: faderValues[idx],
+                initialValue: getRestingChannelValue(idx),
                 targetValue: change.targetValue,
                 discrete: change.discrete
             });
@@ -489,6 +550,10 @@ function fadeChannelsAndLabels(channelChanges, labelChanges, fixtures, callback,
     const STEPS = 20; // Number of steps for smooth fade
     const STEP_INTERVAL = FADE_DURATION / STEPS;
     let step = 0;
+    const intentGenerations = new Map();
+    channelChanges.forEach(({ targetValue }, idx) => {
+        intentGenerations.set(idx, beginChannelIntent(idx, targetValue));
+    });
 
     // Initialize label background states for affected fixtures
     labelChanges.forEach((change, fixtureStart) => {
@@ -506,11 +571,7 @@ function fadeChannelsAndLabels(channelChanges, labelChanges, fixtures, callback,
             channelChanges.forEach(({ initialValue, targetValue, discrete }, idx) => {
                 if (discrete && step > 0) return;
                 const newValue = discrete ? targetValue : Math.round(initialValue + (targetValue - initialValue) * progress);
-                faderValues[idx] = newValue;
-                updateSliderState(idx, newValue);
-                const midiChannel = Math.floor(idx / 128);
-                const ccNumber = idx % 128;
-                sendMIDICC(midiChannel, ccNumber, newValue);
+                applyChannelIntentStep(idx, newValue, intentGenerations.get(idx));
             });
 
             // Update label backgrounds
@@ -541,8 +602,9 @@ function fadeChannelsAndLabels(channelChanges, labelChanges, fixtures, callback,
 
             step++;
             setTimeout(fadeStep, STEP_INTERVAL);
-        } else if (callback) {
-            callback();
+        } else {
+            intentGenerations.forEach((generation, idx) => finishChannelIntent(idx, generation));
+            if (callback) callback();
         }
     }
 
@@ -785,9 +847,11 @@ function createFaders(sendInitialValues = false) {
                 sendMIDICC(midiChannel, ccNumber, faderValues[faderIndex]);
             }
 
+            const pendingIntent = pendingChannelIntents.get(faderIndex);
             sliderStates.set(fader.id, {
                 current: faderValues[faderIndex],
-                target: faderValues[faderIndex],
+                target: pendingIntent?.kind === 'slider' && !isChannelFlashing(faderIndex)
+                    ? pendingIntent.value : faderValues[faderIndex],
                 midiChannel: midiChannel,
                 ccNumber: ccNumber
             });
@@ -807,9 +871,10 @@ function createFaders(sendInitialValues = false) {
 
             fader.addEventListener('input', () => {
     const value = parseInt(fader.value);
-    const oldValue = faderValues[faderIndex];
+    const oldValue = getRestingChannelValue(faderIndex);
     const state = sliderStates.get(fader.id);
-    state.target = value;
+    beginChannelIntent(faderIndex, value, 'slider');
+    if (!isChannelFlashing(faderIndex)) state.target = value;
 
     const valueInput = container.querySelector('.fader-value');
     if (valueInput && !valueInput.classList.contains('editable')) {
@@ -873,11 +938,12 @@ document.addEventListener('click', (e) => {
     const isColorWheel = e.target.closest('#colorWheelModal');
     const isFixtureTypeButton = e.target.closest('.fixture-type-button');
     const isColorModal = e.target.closest('.color-modal');
+    const isOscillationControl = e.target.closest('.oscillation-modal, .oscillation-button');
     const menu = document.getElementById('menu');
     if (!isMenu && !isHamburger && menu.classList.contains('open')) {
         closeMenu();
     }
-    if (!isFaderContainer && !isFixtureGroup && !isFixtureLabel && !isMenu && !isHamburger && !isPageButton && !isColorWheel && !isFixtureTypeButton && !isColorModal && (selectedChannels.size > 0 || selectedFixtures.size > 0)) {
+    if (!isFaderContainer && !isFixtureGroup && !isFixtureLabel && !isMenu && !isHamburger && !isPageButton && !isColorWheel && !isFixtureTypeButton && !isColorModal && !isOscillationControl && (selectedChannels.size > 0 || selectedFixtures.size > 0)) {
         deselectAll();
     }
 });

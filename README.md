@@ -34,6 +34,21 @@ The OSC protocol is documented in the [DMXIS user manual](https://prostage.no/me
 
 Select a fixture and press `C` to choose a color. Gobos use their `Colors` macro channel and switch directly to the saved preset value, including on undo/redo. Supported gobo colors are Warm White, White, Cool White, Red, Orange, Yellow, Green, Blue, Indigo, and Hot Pink; other shades show “Unavailable for gobos.” These values match the local DMXIS `Gobos - ALL` presets. RGB fixtures keep their color fade. When gobos and RGB fixtures are selected together, only colors supported by both are available.
 
-Space runs a short flash and restores the previous underlying settings when it finishes. Holding Space or pressing it again during that flash does not start overlapping sequences. RGB colors and gobo macros retain their original values.
+Space runs a short flash and restores the intended settings when it finishes. Holding Space or pressing it again during that flash does not start overlapping sequences. If a color fade is still running, the flash restores its destination. A new color or slider edit during a flash takes precedence over the original value. Delayed flash feedback cannot replace the restoration value.
+
+## Oscillations
+
+Select individual sliders, or select fixtures and open **Oscillations**. Choose a preset or waveform, set the cycle length and depth, then press **Start**. Individual slider selection takes precedence over the parameter dropdown and supports every channel, including shutter, colors, pan, and tilt. With fixture selection, choose the parameter to affect. **Stop & restore** returns owned channels to their starting settings; a newer manual edit takes precedence.
+
+- **Breathe:** slow sine modulation.
+- **Pulse:** a triangle fade.
+- **Chase:** staggered waves across the selected fixtures.
+- **Shimmer:** a faster, shallow staggered wave.
+- **LED Circle:** a travelling brightness peak across selected perimeter LEDs. In Black Box mode the route follows LED row 2 → right side → row 1 → left side, inferred from the fixture names and patch order. Interior row 3 stays unchanged. Other modes follow selected fixture patch order because no room layout is available.
+- **Gobo Circle:** paired coarse Pan/Tilt sine waves, a quarter cycle apart, around each selected gobo's current position. The radius fits both axes' limits. Fine pan/tilt, color macros, and other channels stay unchanged.
+
+Brightness effects dim below the starting level. Other sliders move above and below it by the chosen percentage of full range, clamped to 0–127. Circle movement uses a shared radius rather than clipping its path. Channels at unknown starting values need a DMXIS capture first; brightness channels at zero are skipped.
+
+These effects run in the browser while this tab is visible. Closing the panel keeps them running; leaving the tab, changing mode, or switching MIDI output stops and restores them. Effects pause on channels temporarily borrowed by Space and resume afterward. MIDI output is limited to 25 updates per second and unchanged values are not retransmitted.
 
 Future contributions to the original website belong in a separate fork.

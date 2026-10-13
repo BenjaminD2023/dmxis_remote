@@ -1,8 +1,61 @@
 // DMXIS feedback must not replace the values we temporarily use for a flash.
 const activeFlashChannels = new Set();
+const activeFlashRestores = new Map();
+let flashTimer = null;
+
+function applyFlashValue(idx, value, transient = true) {
+    faderValues[idx] = value;
+    const sliderId = `fader-${idx}`;
+    const midiChannel = Math.floor(idx / 128);
+    const ccNumber = idx % 128;
+    const state = sliderStates.get(sliderId);
+    if (state) {
+        state.current = value;
+        state.target = value;
+    } else {
+        sliderStates.set(sliderId, {
+            current: value,
+            target: value,
+            midiChannel,
+            ccNumber
+        });
+    }
+
+    const slider = document.getElementById(sliderId);
+    if (slider) {
+        slider.value = value;
+        const valueInput = slider.parentElement.querySelector('.fader-value');
+        if (valueInput && !valueInput.classList.contains('editable')) {
+            valueInput.value = Math.round((value / 127) * 100);
+        }
+    }
+    // Colors and other discrete channels must jump back directly.
+    sendMIDICC(midiChannel, ccNumber, value, { transient });
+}
+
+
+function restoreActiveFlash() {
+    flashTimer = null;
+    activeFlashRestores.forEach((value, idx) => {
+        // Pending effects may resume, while an older fade must not overwrite
+        // the latest intended setting after flash ownership is released.
+        const resumesOscillation = typeof isOscillationChannelOwned === 'function' && isOscillationChannelOwned(idx);
+        if (typeof pendingChannelIntents !== 'undefined' && !resumesOscillation) pendingChannelIntents.delete(idx);
+        if (typeof protectFlashRestore === 'function') protectFlashRestore(idx, value);
+        applyFlashValue(idx, value, false);
+    });
+    activeFlashChannels.clear();
+    activeFlashRestores.clear();
+}
+
+function cancelActiveFlash() {
+    clearTimeout(flashTimer);
+    restoreActiveFlash();
+}
 
 document.addEventListener('keydown', function(event) {
     const activeElement = document.activeElement;
+    if (activeElement.closest('.oscillation-modal')) return;
     const isSlider = activeElement.classList.contains('fader');
     const isValueInput = activeElement.classList.contains('fader-value') && activeElement.classList.contains('editable');
     const isColorMenu = activeElement.closest('.color-modal');
@@ -375,11 +428,13 @@ document.addEventListener('keydown', function(event) {
             const idx = ch - 1;
             if (idx < 0 || idx >= faderValues.length) return;
             // Restore the underlying fader, not a modulated OSC output sample.
-            const originalValue = typeof getFlashRestoreValue === 'function'
-                ? getFlashRestoreValue(idx) : faderValues[idx];
+            const originalValue = typeof getIntendedChannelValue === 'function'
+                ? getIntendedChannelValue(idx)
+                : typeof getFlashRestoreValue === 'function' ? getFlashRestoreValue(idx) : faderValues[idx];
             if (!Number.isInteger(originalValue) || originalValue < 0 || originalValue > 127) return;
             originalValues.set(idx, originalValue);
             activeFlashChannels.add(idx);
+            activeFlashRestores.set(idx, originalValue);
         });
 
         if (originalValues.size === 0) return;
@@ -391,48 +446,17 @@ document.addEventListener('keydown', function(event) {
             { value: 127, delay: 100 }
         ];
 
-        function applyFlashValue(idx, value) {
-            faderValues[idx] = value;
-            const sliderId = `fader-${idx}`;
-            const midiChannel = Math.floor(idx / 128);
-            const ccNumber = idx % 128;
-            const state = sliderStates.get(sliderId);
-            if (state) {
-                state.current = value;
-                state.target = value;
-            } else {
-                sliderStates.set(sliderId, {
-                    current: value,
-                    target: value,
-                    midiChannel,
-                    ccNumber
-                });
-            }
-
-            const slider = document.getElementById(sliderId);
-            if (slider) {
-                slider.value = value;
-                const valueInput = slider.parentElement.querySelector('.fader-value');
-                if (valueInput && !valueInput.classList.contains('editable')) {
-                    valueInput.value = Math.round((value / 127) * 100);
-                }
-            }
-            // Colors and other discrete channels must jump back directly.
-            sendMIDICC(midiChannel, ccNumber, value);
-        }
-
         let step = 0;
         function executeFlash() {
             if (step < flashSequence.length) {
                 const { value } = flashSequence[step];
                 originalValues.forEach((_, idx) => applyFlashValue(idx, value));
-                setTimeout(() => {
+                flashTimer = setTimeout(() => {
                     step++;
                     executeFlash();
                 }, flashSequence[step].delay);
             } else {
-                originalValues.forEach((originalValue, idx) => applyFlashValue(idx, originalValue));
-                activeFlashChannels.clear();
+                restoreActiveFlash();
             }
         }
         executeFlash();
@@ -699,7 +723,7 @@ document.addEventListener('keydown', function(event) {
             const sliderId = `fader-${idx}`;
             const midiChannel = Math.floor(idx / 128);
             const ccNumber = idx % 128;
-            let currentValue = faderValues[idx];
+            let currentValue = getRestingChannelValue(idx);
 
             if (event.key === 'ArrowUp') {
                 currentValue = event.shiftKey ? 127 : Math.min(127, currentValue + step);
@@ -707,6 +731,8 @@ document.addEventListener('keydown', function(event) {
                 currentValue = event.shiftKey ? 0 : Math.max(0, currentValue - step);
             }
 
+            const generation = beginChannelIntent(idx, currentValue, 'slider');
+            if (isChannelFlashing(idx)) return;
             faderValues[idx] = currentValue;
 
             if (sliderStates.has(sliderId)) {
@@ -731,6 +757,7 @@ document.addEventListener('keydown', function(event) {
             }
 
             sendMIDICC(midiChannel, ccNumber, currentValue);
+            if (sliderStates.get(sliderId).current === currentValue) finishChannelIntent(idx, generation);
             if (!animationFrameId) {
                 animationFrameId = requestAnimationFrame(updateSliders);
             }
@@ -794,6 +821,8 @@ document.addEventListener('keydown', function(event) {
 
             targetChannels.forEach(ch => {
                 const idx = ch - 1;
+                const generation = beginChannelIntent(idx, newValue, 'slider');
+                if (isChannelFlashing(idx)) return;
                 faderValues[idx] = newValue;
                 const sliderId = `fader-${idx}`;
                 const midiChannel = Math.floor(idx / 128);
@@ -823,6 +852,7 @@ document.addEventListener('keydown', function(event) {
                 }
 
                 sendMIDICC(midiChannel, ccNumber, newValue);
+                if (sliderStates.get(sliderId).current === newValue) finishChannelIntent(idx, generation);
                 if (!animationFrameId) {
                     animationFrameId = requestAnimationFrame(updateSliders);
                 }

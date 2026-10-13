@@ -8,14 +8,34 @@ const dmxisSync = {
     appliedAt: new Array(512).fill(0),
     baseValues: new Array(512).fill(null),
     baseUpdatedAt: new Array(512).fill(0),
-    localWrites: new Map()
+    localWrites: new Map(),
+    flashRestores: new Map()
 };
 
 function recordLocalChannelWrite(idx, value) {
     const at = Date.now();
+    const restored = dmxisSync.flashRestores.get(idx);
+    if (restored && restored.value !== value) dmxisSync.flashRestores.delete(idx);
     dmxisSync.localWrites.set(idx, { value, at });
     dmxisSync.baseValues[idx] = value;
     dmxisSync.baseUpdatedAt[idx] = at;
+}
+
+function protectFlashRestore(idx, value) {
+    // DMXIS may deliver an earlier flash frame after the restoration command.
+    // Use the frame's receipt time, so an old cached frame stays rejected even
+    // when it is polled again later or follows a matching acknowledgement.
+    dmxisSync.flashRestores.set(idx, { value, ignoreThrough: Date.now() + 350 });
+}
+
+function ignoresFlashFeedback(idx, value, receivedAt) {
+    const restored = dmxisSync.flashRestores.get(idx);
+    return restored && value !== restored.value && receivedAt <= restored.ignoreThrough;
+}
+
+function isChannelAnimating(idx) {
+    return (typeof pendingChannelIntents !== 'undefined' && pendingChannelIntents.has(idx)) ||
+        (typeof activeOscillationChannels !== 'undefined' && activeOscillationChannels.has(idx));
 }
 
 function getFlashRestoreValue(idx) {
@@ -99,6 +119,9 @@ function applyDMXISStatus(snapshot) {
             const at = snapshot.baseUpdatedAt[idx];
             if (!Number.isInteger(value) || value < 0 || value > 127 || !Number.isFinite(at) || at <= dmxisSync.baseUpdatedAt[idx]) return;
             if (typeof activeFlashChannels !== 'undefined' && activeFlashChannels.has(idx)) return;
+            if (isChannelAnimating(idx) || ignoresFlashFeedback(idx, value, at)) return;
+            const local = dmxisSync.localWrites.get(idx);
+            if (local && (at <= local.at || (Date.now() - local.at < 350 && value !== local.value))) return;
             dmxisSync.baseValues[idx] = value;
             dmxisSync.baseUpdatedAt[idx] = at;
         });
@@ -109,6 +132,7 @@ function applyDMXISStatus(snapshot) {
         dmxisSync.known.add(idx);
         if (receivedAt <= dmxisSync.appliedAt[idx]) return;
         if (typeof activeFlashChannels !== 'undefined' && activeFlashChannels.has(idx)) return;
+        if (isChannelAnimating(idx) || ignoresFlashFeedback(idx, value, receivedAt)) return;
         const slider = document.getElementById(`fader-${idx}`);
         const input = slider?.parentElement.querySelector('.fader-value');
         if (input?.classList.contains('editable')) return;

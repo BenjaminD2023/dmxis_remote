@@ -249,7 +249,7 @@ function applyColor(colorName) {
             const idx = fixture.from + macroParamIdx - 1;
             if (macroParamIdx < 0 || idx >= fixture.to) return;
             const change = {
-                initialValue: faderValues[idx] || 0,
+                initialValue: getRestingChannelValue(idx) || 0,
                 targetValue: GOBO_COLOR_MACROS[colorName],
                 discrete: true
             };
@@ -293,12 +293,12 @@ function applyColor(colorName) {
                 else if (idx === warmIdx) targetValue = targetWarm;
 
                 changes.set(idx, {
-                    initialValue: faderValues[idx] || 0,
+                    initialValue: getRestingChannelValue(idx) || 0,
                     targetValue
                 });
 
                 historyEntry.channelChanges.set(idx, {
-                    initialValue: faderValues[idx] || 0,
+                    initialValue: getRestingChannelValue(idx) || 0,
                     targetValue
                 });
             });
@@ -325,12 +325,17 @@ function applyColor(colorName) {
         }
     });
 
+    const intentGenerations = new Map();
+    historyEntry.channelChanges.forEach(({ targetValue }, idx) => {
+        intentGenerations.set(idx, beginChannelIntent(idx, targetValue));
+    });
+
     // A macro selects a discrete color. Jump directly to it rather than
     // fading through other colors; leave the gobo's shutter and motion alone.
     macroChanges.forEach(({ targetValue }, idx) => {
-        faderValues[idx] = targetValue;
-        updateSliderState(idx, targetValue);
-        sendMIDICC(Math.floor(idx / 128), idx % 128, targetValue);
+        const generation = intentGenerations.get(idx);
+        applyChannelIntentStep(idx, targetValue, generation);
+        finishChannelIntent(idx, generation);
     });
 
     if (fixtures.length > 0) {
@@ -347,11 +352,7 @@ function applyColor(colorName) {
             const progress = step / STEPS;
             changes.forEach(({ initialValue, targetValue }, idx) => {
                 const newValue = Math.round(initialValue + (targetValue - initialValue) * progress);
-                faderValues[idx] = newValue;
-                updateSliderState(idx, newValue);
-                const midiChannel = Math.floor(idx / 128);
-                const ccNumber = idx % 128;
-                sendMIDICC(midiChannel, ccNumber, newValue);
+                applyChannelIntentStep(idx, newValue, intentGenerations.get(idx));
             });
 
             createFaders(false);
@@ -362,6 +363,7 @@ function applyColor(colorName) {
             setTimeout(fadeStep, STEP_INTERVAL);
         } else {
             // After fade completes, save to history
+            changes.forEach((_, idx) => finishChannelIntent(idx, intentGenerations.get(idx)));
             saveToHistory(historyEntry);
         }
     }
