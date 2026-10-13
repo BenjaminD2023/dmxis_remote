@@ -79,8 +79,6 @@ function changeMode(mode) {
 function changePage(page, sendInitialValues = false) {
     if (page >= 0 && page < TOTAL_PAGES) {
         currentPage = page;
-        selectedChannels = new Set();
-        lastSelectedChannel = null;
         updatePageButtons();
         createFaders(sendInitialValues);
         createFixtureLabelGrid();
@@ -642,6 +640,7 @@ function deselectAll() {
     }
 
     updateFixtureGroupPositions();
+    if (typeof refreshOscillationSelection === 'function') refreshOscillationSelection();
 }
 
 function createPageButtons() {
@@ -680,105 +679,16 @@ function createPageButtons() {
 function createMacroButtons() {
     const macroButtons = document.getElementById('macroButtons');
     macroButtons.innerHTML = '';
-
-    for (let row = 0; row < 2; row++) {
-        const macroRow = document.createElement('div');
-        macroRow.className = 'page-row';
-
-        for (let col = 0; col < 8; col++) {
-            const buttonIndex = row * 8 + col;
-            const button = document.createElement('button');
-            button.className = 'page-button';
-            button.tabIndex = -1;
-
-            const pageText = document.createElement('div');
-            const rangeText = document.createElement('div');
-            rangeText.className = 'range';
-            rangeText.textContent = '';
-
-            if (buttonIndex === 0) {
-                pageText.textContent = 'Blackout';
-                button.appendChild(pageText);
-                button.appendChild(rangeText);
-                button.onclick = () => {
-                    blackout();
-                };
-            } else {
-                pageText.textContent = '';
-                rangeText.textContent = '';
-                button.appendChild(pageText);
-                button.appendChild(rangeText);
-                button.disabled = true;
-            }
-            macroRow.appendChild(button);
-        }
-        macroButtons.appendChild(macroRow);
-    }
+    const button = document.createElement('button');
+    button.className = 'page-button';
+    button.textContent = 'Blackout';
+    button.onclick = blackout;
+    macroButtons.appendChild(button);
 }
 
 function handleChannelSelection(channel, event) {
-    const allContainers = Array.from(document.querySelectorAll('.fader-container'));
-    const container = allContainers.find(c => parseInt(c.dataset.channel) === channel);
-
-    if (event.metaKey || event.ctrlKey) {
-        // Command+Click or Ctrl+Click: Toggle channel selection
-        if (selectedChannels.has(channel)) {
-            selectedChannels.delete(channel);
-            container.classList.remove('selected');
-            container.classList.remove('highlighted');
-        } else {
-            selectedChannels.add(channel);
-            container.classList.add('selected');
-            updateFixtureTitle(container);
-            highlightFixture(channel);
-        }
-        lastSelectedChannel = channel;
-    } else if (event.shiftKey && lastSelectedChannel !== null) {
-        // Shift+Click: Select range of channels
-        const currentIndex = allContainers.findIndex(c => parseInt(c.dataset.channel) === channel);
-        const lastIndex = allContainers.findIndex(c => parseInt(c.dataset.channel) === lastSelectedChannel);
-        const startIndex = Math.min(currentIndex, lastIndex);
-        const endIndex = Math.max(currentIndex, lastIndex);
-
-        selectedChannels.clear();
-        for (let i = startIndex; i <= endIndex; i++) {
-            const ch = parseInt(allContainers[i].dataset.channel);
-            selectedChannels.add(ch);
-            allContainers[i].classList.add('selected');
-            updateFixtureTitle(allContainers[i]);
-            highlightFixture(ch);
-        }
-        lastSelectedChannel = channel;
-    } else {
-        // Single Click: Select only this channel
-        selectedChannels.clear();
-        selectedChannels.add(channel);
-        lastSelectedChannel = channel;
-
-        allContainers.forEach(c => {
-            const ch = parseInt(c.dataset.channel);
-            if (ch === channel) {
-                c.classList.add('selected');
-                updateFixtureTitle(c);
-                highlightFixture(ch);
-            } else {
-                c.classList.remove('selected');
-                c.classList.remove('highlighted');
-            }
-        });
-    }
-
-    // Update fixture groups to reflect channel selection
-    document.querySelectorAll('.fixture-group').forEach(group => {
-        const channels = group.dataset.channels.split(',').map(Number);
-        if (channels.some(ch => selectedChannels.has(ch))) {
-            group.classList.add('active');
-        } else {
-            group.classList.remove('active');
-        }
-    });
-
-    updateFixtureGroupPositions();
+    const container = document.querySelector(`.fader-container[data-channel="${channel}"]`);
+    if (container) selectContainer(container, event.shiftKey, event.metaKey || event.ctrlKey);
 }
 
 function createFaders(sendInitialValues = false) {
@@ -831,8 +741,12 @@ function createFaders(sendInitialValues = false) {
             if (fixture && fixture.type in fixtureParameters) {
                 const paramIndex = (channel - fixture.from) % fixtureParameters[fixture.type].length;
                 symbol.textContent = fixtureParameters[fixture.type][paramIndex].abbr;
+                const paramName = fixtureParameters[fixture.type][paramIndex].name || `Channel ${channel}`;
+                fader.setAttribute('aria-label', `${fixture.name}: ${paramName}`);
+                container.title = `Double-click to select ${paramName} for all ${fixture.type} lights. Hold Cmd/Ctrl to add to the selection.`;
             } else {
                 symbol.textContent = '';
+                fader.setAttribute('aria-label', `Channel ${channel}`);
             }
 
             const valueInput = document.createElement('input');
@@ -897,9 +811,20 @@ function createFaders(sendInitialValues = false) {
             });
 
             container.addEventListener('click', (e) => {
-                // Prevent handling click if the fader or value input is the target
-                if (e.target === fader || e.target === valueInput) return;
+                // The second click belongs to the category-selection gesture.
+                if (e.target === valueInput || e.detail > 1) return;
+                // Keep a category selected when adjusting one of its sliders.
+                if (e.target === fader && selectedChannels.has(channel) && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
+                    lastSelectedChannel = channel;
+                    updateFixtureTitle(container);
+                    return;
+                }
                 handleChannelSelection(channel, e);
+            });
+            container.addEventListener('dblclick', (e) => {
+                if (e.target === valueInput) return;
+                e.preventDefault();
+                selectSameParameterContainers(container, e.metaKey || e.ctrlKey);
             });
         }
         grid.appendChild(faderRow);
@@ -907,6 +832,7 @@ function createFaders(sendInitialValues = false) {
 
     requestAnimationFrame(() => updateFixtureGroupPositions());
     if (typeof refreshSyncValueLabels === 'function') refreshSyncValueLabels();
+    if (typeof refreshOscillationSelection === 'function') refreshOscillationSelection();
 }
 
 function updatePageButtons() {
@@ -938,7 +864,7 @@ document.addEventListener('click', (e) => {
     const isColorWheel = e.target.closest('#colorWheelModal');
     const isFixtureTypeButton = e.target.closest('.fixture-type-button');
     const isColorModal = e.target.closest('.color-modal');
-    const isOscillationControl = e.target.closest('.oscillation-modal, .oscillation-button');
+    const isOscillationControl = e.target.closest('.oscillation-controls');
     const menu = document.getElementById('menu');
     if (!isMenu && !isHamburger && menu.classList.contains('open')) {
         closeMenu();

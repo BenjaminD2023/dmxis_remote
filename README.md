@@ -38,17 +38,19 @@ Space runs a short flash and restores the intended settings when it finishes. Ho
 
 ## Oscillations
 
-Select individual sliders, or select fixtures and open **Oscillations**. Choose a preset or waveform, set the cycle length and depth, then press **Start**. Individual slider selection takes precedence over the parameter dropdown and supports every channel, including shutter, colors, pan, and tilt. With fixture selection, choose the parameter to affect. **Stop & restore** returns owned channels to their starting settings; a newer manual edit takes precedence.
+Oscillation controls sit beside **Blackout**, below the sliders. Select sliders, choose a preset or waveform, set the cycle length and depth, then press **Start**. Effects use only the selected sliders, including shutter, colors, pan, and tilt. **Stop** restores their starting settings; a newer manual edit takes precedence.
+
+Double-click a slider, its number, or its parameter symbol to select the matching parameter across every fixture in the same category, including other pages. For example, double-clicking a gobo Pan slider selects all gobo Pan sliders. Cmd/Ctrl-double-click adds a second parameter without clearing the first. Cmd/Ctrl-click toggles individual sliders; Shift-click selects a range. Page navigation preserves the selection; changing mode clears it.
 
 - **Breathe:** slow sine modulation.
 - **Pulse:** a triangle fade.
 - **Chase:** staggered waves across the selected fixtures.
 - **Shimmer:** a faster, shallow staggered wave.
-- **LED Circle:** a travelling brightness peak across selected perimeter LEDs. In Black Box mode the route follows LED row 2 → right side → row 1 → left side, inferred from the fixture names and patch order. Interior row 3 stays unchanged. Other modes follow selected fixture patch order because no room layout is available.
-- **Gobo Circle:** paired coarse Pan/Tilt sine waves, a quarter cycle apart, around each selected gobo's current position. The radius fits both axes' limits. Fine pan/tilt, color macros, and other channels stay unchanged.
+- **LED Circle:** a travelling brightness peak across selected perimeter LED shutter/dimmer sliders. In Black Box mode the route follows LED row 2 → right side → row 1 → left side, inferred from the fixture names and patch order. Interior row 3 stays unchanged. Other modes follow selected fixture patch order because no room layout is available.
+- **Gobo Circle:** paired coarse Pan/Tilt sine waves, a quarter cycle apart, around each gobo's current position. Select both Pan and Tilt sliders: double-click Pan, then Cmd/Ctrl-double-click Tilt. The radius fits both axes' limits. Unselected sliders stay unchanged.
 
 Brightness effects dim below the starting level. Other sliders move above and below it by the chosen percentage of full range, clamped to 0–127. Circle movement uses a shared radius rather than clipping its path. Channels at unknown starting values need a DMXIS capture first; brightness channels at zero are skipped.
 
-These effects run in the browser while this tab is visible. Closing the panel keeps them running; leaving the tab, changing mode, or switching MIDI output stops and restores them. Effects pause on channels temporarily borrowed by Space and resume afterward. MIDI output is limited to 25 updates per second and unchanged values are not retransmitted.
+These effects run in the browser while this tab is visible. Leaving the tab, changing mode, or switching MIDI output stops and restores them. Effects pause on channels temporarily borrowed by Space and resume afterward. MIDI output is limited to 25 updates per second and unchanged values are not retransmitted.
 
 Future contributions to the original website belong in a separate fork.

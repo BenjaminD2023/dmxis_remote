@@ -372,15 +372,16 @@ function selectContainer(container, shiftKey = false, metaKey = false) {
 }
 
 function selectSameParameterContainers(container, metaKey = false) {
-    currentHighlightedFixture = null;
-    selectedFixtures.clear();
     const channel = parseInt(container.dataset.channel);
     const fixtures = getCurrentModeFixtures();
     const fixture = fixtures.find(f => channel >= f.from && channel <= f.to);
-    if (!fixture || !fixture.type in fixtureParameters) return;
+    if (!fixture || !(fixture.type in fixtureParameters)) return;
+    const parameters = fixtureParameters[fixture.type];
+    if (parameters.length === 0) return;
 
-    const paramIndex = (channel - fixture.from) % fixtureParameters[fixture.type].length;
-    const paramName = fixtureParameters[fixture.type][paramIndex].name;
+    const paramIndex = (channel - fixture.from) % parameters.length;
+    currentHighlightedFixture = null;
+    selectedFixtures.clear();
 
     const sameTypeFixtures = fixtures.filter(f => f.type === fixture.type);
     const channels = sameTypeFixtures.reduce((acc, f) => {
@@ -425,11 +426,20 @@ function selectSameParameterContainers(container, metaKey = false) {
     updateFixtureLabelGrid();
 }
 
+function clearChannelSelectionForFixtures() {
+    selectedChannels.clear();
+    lastSelectedChannel = null;
+    document.querySelectorAll('.fader-container').forEach(container => {
+        container.classList.remove('selected', 'highlighted');
+    });
+}
+
 function selectAllFixturesInRow(fixtureStartChannel, metaKey = false) {
     const fixtures = getCurrentModeFixtures();
     const sortedFixtures = getSortedFixtures();
     const fixture = fixtures.find(f => f.from === fixtureStartChannel);
     if (!fixture) return;
+    clearChannelSelectionForFixtures();
 
     const fixtureIndex = sortedFixtures.findIndex(f => f && f.from === fixtureStartChannel);
     const rowIndex = Math.floor(fixtureIndex / 6); // 6 columns per row
@@ -488,8 +498,7 @@ function selectFixture(fixtureStartChannel, shiftKey = false, metaKey = false) {
         changePage(fixturePage);
     }
 
-    selectedChannels.clear();
-    lastSelectedChannel = null;
+    clearChannelSelectionForFixtures();
 
     if (metaKey) {
         if (selectedFixtures.has(fixtureStartChannel)) {
@@ -544,6 +553,7 @@ function selectSimilarNamedFixtures(fixtureStartChannel, metaKey = false) {
     const fixtures = getCurrentModeFixtures();
     const fixture = fixtures.find(f => f.from === fixtureStartChannel);
     if (!fixture) return;
+    clearChannelSelectionForFixtures();
 
     // Find the fixture group that this fixture belongs to
     const groups = FIXTURE_GROUPS[currentMode] || [];
@@ -597,14 +607,13 @@ function selectSimilarNamedFixtures(fixtureStartChannel, metaKey = false) {
         item.classList.remove('active');
     });
 
-    requestAnimationFrame(() => {
-        updateFixtureGroupPositions();
-        updateFixtureLabelGrid();
-    });
+    updateFixtureLabelGrid();
+    requestAnimationFrame(updateFixtureGroupPositions);
 }
 
 function selectAllFixturesOfType(type, clearSelection = true) {
     const fixtures = getCurrentModeFixtures();
+    clearChannelSelectionForFixtures();
     if (clearSelection) {
         selectedFixtures.clear();
         currentHighlightedFixture = null;
@@ -752,6 +761,7 @@ function updateFixtureLabelGrid() {
             item.style.backgroundColor = hexToRGBA(state.hex, state.currentOpacity);
         }
     });
+    if (typeof refreshOscillationSelection === 'function') refreshOscillationSelection();
 }
 
 function updateFixtureGroupPositions() {

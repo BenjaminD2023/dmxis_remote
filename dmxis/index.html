@@ -181,57 +181,57 @@
             background: #666;
         }
 
-        .oscillation-button,
-        .oscillation-modal button {
+        .channel-controls {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.6rem;
+            margin-top: 0.6rem;
+        }
+
+        .oscillation-controls {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .oscillation-controls button {
             background: #555;
             border: 1px solid #777;
             border-radius: 5px;
             color: #fff;
-            padding: 0.5rem 0.75rem;
+            padding: 0.4rem 0.65rem;
             font: inherit;
+            font-size: 0.75rem;
             cursor: pointer;
         }
 
-        .oscillation-button:hover,
-        .oscillation-modal button:hover:not(:disabled) {
+        .oscillation-controls button:hover:not(:disabled) {
             background: #666;
         }
 
-        .oscillation-modal {
-            width: min(28rem, calc(100vw - 3rem));
-            max-height: calc(100vh - 3rem);
-            overflow-y: auto;
-            box-sizing: border-box;
-            background: #222;
-            color: #fff;
-            border: 1px solid #777;
-            border-radius: 8px;
-            padding: 1.25rem;
-        }
-
-        .oscillation-modal::backdrop { background: #0009; }
-        .oscillation-modal h2 { margin: 0 0 0.75rem; font-size: 1.25rem; }
-        .oscillation-modal p { color: #ccc; line-height: 1.4; }
-        .oscillation-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
-        .oscillation-fields label { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+        .oscillation-fields { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.4rem; }
+        .oscillation-fields label { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; color: #ccc; font-size: 0.75rem; }
         .oscillation-fields select,
         .oscillation-fields input {
-            width: 100%;
             box-sizing: border-box;
-            padding: 0.5rem;
+            min-height: 2rem;
+            padding: 0.35rem;
             border: 1px solid #777;
             border-radius: 4px;
             background: #333;
             color: #fff;
             font: inherit;
+            font-size: 0.75rem;
         }
-        .oscillation-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem; }
-        .oscillation-modal button:disabled { opacity: 0.5; cursor: default; }
-        .oscillation-modal :focus-visible,
-        .oscillation-button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
-        .oscillation-status { min-height: 2.8em; }
+        .oscillation-fields input { width: 4.5rem; font-variant-numeric: tabular-nums; }
+        .oscillation-actions { display: flex; gap: 0.4rem; }
+        .oscillation-controls button:disabled { opacity: 0.5; cursor: default; }
+        .oscillation-controls :focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+        .oscillation-controls p { margin: 0.35rem 0 0; color: #ccc; font-size: 0.75rem; line-height: 1.4; }
+        .oscillation-controls .oscillation-status:empty { display: none; }
+        .oscillation-selection { font-variant-numeric: tabular-nums; }
         @media (max-width: 480px) {
-            .oscillation-fields { grid-template-columns: 1fr; }
+            .channel-controls { flex-wrap: wrap; }
+            .oscillation-controls { flex-basis: 100%; }
         }
 
         .fixture-label-grid {
@@ -457,12 +457,10 @@
         }
 
         .macro-buttons {
-            display: grid;
-            grid-template-rows: 1fr 1fr;
-            gap: 0.5vw;
-            margin-top: 0.5vw;
-            width: 100%;
+            flex: 0 0 auto;
+            padding-top: 1rem;
         }
+        .macro-buttons .page-button { width: clamp(60px, 6vw, 85px); min-height: 2rem; }
 
         .search-modal,
         .color-modal,
@@ -599,7 +597,6 @@
         <div class="left-container">
             <div class="fixture-controls">
                 <div class="fixture-type-buttons" id="fixtureTypeButtons"></div>
-                <button class="oscillation-button" id="oscillationButton" aria-haspopup="dialog" aria-controls="oscillationModal">Oscillations</button>
                 <button class="sort-toggle-button" id="sortToggle"></button>
             </div>
             <div class="fixture-label-grid" id="fixtureLabelGrid"></div>
@@ -607,51 +604,45 @@
         <div class="right-container">
             <div class="page-selector" id="pageSelector"></div>
             <div class="fader-grid" id="faderGrid"></div>
-            <div class="macro-buttons" id="macroButtons"></div>
+            <div class="channel-controls">
+                <div class="macro-buttons" id="macroButtons"></div>
+                <section class="oscillation-controls" aria-label="Slider oscillations">
+                    <div class="oscillation-fields">
+                        <label for="oscillationPreset">Oscillation
+                            <select id="oscillationPreset">
+                                <option value="breathe">Breathe</option>
+                                <option value="pulse">Pulse</option>
+                                <option value="chase">Chase</option>
+                                <option value="shimmer">Shimmer</option>
+                                <option value="ledCircle">LED Circle</option>
+                                <option value="goboCircle">Gobo Circle</option>
+                            </select>
+                        </label>
+                        <label for="oscillationWaveform">Wave
+                            <select id="oscillationWaveform">
+                                <option value="sine">Sine</option>
+                                <option value="triangle">Triangle</option>
+                                <option value="square">Square</option>
+                            </select>
+                        </label>
+                        <label for="oscillationPeriod">Cycle (s)
+                            <input id="oscillationPeriod" type="number" min="0.5" max="20" step="0.1" value="4">
+                        </label>
+                        <label for="oscillationDepth">Depth (%)
+                            <input id="oscillationDepth" type="number" min="0" max="100" step="1" value="80">
+                        </label>
+                        <div class="oscillation-actions">
+                            <button id="oscillationStart" type="button" disabled>Start</button>
+                            <button id="oscillationStop" type="button" disabled title="Stop and restore starting settings">Stop</button>
+                        </div>
+                    </div>
+                    <p class="oscillation-selection" id="oscillationSelection" aria-live="polite">Select sliders to oscillate.</p>
+                    <p id="oscillationRouteHelp">Double-click a slider for its whole category. Cmd/Ctrl-double-click adds another parameter.</p>
+                    <p class="oscillation-status" id="oscillationStatus" role="status" aria-live="polite"></p>
+                </section>
+            </div>
         </div>
     </div>
-    <dialog class="oscillation-modal" id="oscillationModal" aria-labelledby="oscillationTitle" aria-describedby="oscillationHelp">
-        <h2 id="oscillationTitle">Oscillations</h2>
-        <p id="oscillationHelp">Select sliders to oscillate them, or select lights and choose a fixture parameter.</p>
-        <div class="oscillation-fields">
-            <label for="oscillationPreset">Preset
-                <select id="oscillationPreset">
-                    <option value="breathe">Breathe</option>
-                    <option value="pulse">Pulse</option>
-                    <option value="chase">Chase</option>
-                    <option value="shimmer">Shimmer</option>
-                    <option value="ledCircle">LED Circle</option>
-                    <option value="goboCircle">Gobo Circle</option>
-                </select>
-            </label>
-            <label for="oscillationParameter">Fixture parameter
-                <select id="oscillationParameter">
-                    <option value="brightness">Brightness</option>
-                </select>
-            </label>
-            <label for="oscillationWaveform">Waveform
-                <select id="oscillationWaveform">
-                    <option value="sine">Sine · smooth</option>
-                    <option value="triangle">Triangle · fade</option>
-                    <option value="square">Square · pulse</option>
-                </select>
-            </label>
-            <label for="oscillationPeriod">Cycle length (seconds)
-                <input id="oscillationPeriod" type="number" min="0.5" max="20" step="0.1" value="4">
-            </label>
-            <label for="oscillationDepth">Depth / radius (%)
-                <input id="oscillationDepth" type="number" min="0" max="100" step="1" value="80">
-            </label>
-        </div>
-        <p id="oscillationRouteHelp">Brightness dims below its starting level. Other sliders move above and below their starting value.</p>
-        <p>Stop restores the starting settings. Closing this panel keeps effects running; leaving the tab stops and restores them.</p>
-        <p class="oscillation-status" id="oscillationStatus" role="status" aria-live="polite">Choose a preset, then start.</p>
-        <div class="oscillation-actions">
-            <button id="oscillationStart" type="button">Start</button>
-            <button id="oscillationStop" type="button" disabled>Stop &amp; restore</button>
-            <button id="oscillationClose" type="button">Close</button>
-        </div>
-    </dialog>
     <script src="fixtures.js"></script>
     <script src="main.js"></script>
     <script src="hotkeys.js"></script>

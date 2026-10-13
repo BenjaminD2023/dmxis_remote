@@ -27,42 +27,30 @@ function getOscillationBaseValue(idx) {
     return isOscillationChannelOwned(idx) ? oscillationChannels.get(idx).base : undefined;
 }
 
-function getOscillationTargets(presetName, parameter) {
+function getOscillationTargets(presetName) {
     const channels = new Map();
     const fixtures = getCurrentModeFixtures();
-    const addChannel = (ch, fixture, param, phase = 0) => {
+    selectedChannels.forEach(ch => {
         if (ch < 1 || ch > faderValues.length) return;
+        const fixture = fixtures.find(f => ch >= f.from && ch <= f.to);
+        const params = fixtureParameters[fixture?.type] || [];
+        const parameter = params[ch - fixture?.from]?.name;
+        const brightness = ['Shutter', 'Dimmer'].includes(parameter) && fixture?.type !== 'Fog Machine';
+        if (presetName === 'ledCircle' && (!brightness || !['LED', 'Uplighting', 'Auditorium LED'].includes(fixture?.type) ||
+            currentMode === 'Black Box' && !BLACK_BOX_LED_PERIMETER.includes(fixture.from))) return;
+        if (presetName === 'goboCircle') {
+            if (fixture?.type !== 'Motorized Par' || !['Pan', 'Tilt'].includes(parameter)) return;
+            // Circular motion needs both axes explicitly selected. An effect
+            // must never borrow another slider that the user did not select.
+            const pan = fixture.from + params.findIndex(param => param.name === 'Pan');
+            const tilt = fixture.from + params.findIndex(param => param.name === 'Tilt');
+            if (!selectedChannels.has(pan) || !selectedChannels.has(tilt)) return;
+        }
         channels.set(ch - 1, {
             fixture: fixture?.from || ch,
-            brightness: ['Shutter', 'Dimmer'].includes(param) && fixture?.type !== 'Fog Machine',
-            parameter: param,
-            phase
-        });
-    };
-    // Explicit sliders can modulate any channel, including motion and macros.
-    if (selectedChannels.size && !['ledCircle', 'goboCircle'].includes(presetName)) {
-        selectedChannels.forEach(ch => {
-            const fixture = fixtures.find(f => ch >= f.from && ch <= f.to);
-            addChannel(ch, fixture, fixtureParameters[fixture?.type]?.[ch - fixture?.from]?.name);
-        });
-        return channels;
-    }
-    fixtures.forEach(fixture => {
-        const selected = selectedFixtures.has(fixture.from) || ['ledCircle', 'goboCircle'].includes(presetName) &&
-            [...selectedChannels].some(ch => ch >= fixture.from && ch <= fixture.to);
-        if (!selected) return;
-        if (presetName === 'goboCircle' && fixture.type !== 'Motorized Par') return;
-        if (presetName === 'ledCircle' && (!['LED', 'Uplighting', 'Auditorium LED'].includes(fixture.type) ||
-            currentMode === 'Black Box' && !BLACK_BOX_LED_PERIMETER.includes(fixture.from))) return;
-        if (parameter === 'brightness' && fixture.type === 'Fog Machine') return;
-        const params = fixtureParameters[fixture.type] || [];
-        params.forEach((param, offset) => {
-            const ch = fixture.from + offset;
-            if (ch > fixture.to) return;
-            const wanted = presetName === 'goboCircle' ? ['Pan', 'Tilt'].includes(param.name)
-                : presetName === 'ledCircle' || parameter === 'brightness' ? ['Shutter', 'Dimmer'].includes(param.name)
-                : param.name === parameter;
-            if (wanted) addChannel(ch, fixture, param.name, presetName === 'goboCircle' && param.name === 'Tilt' ? 0.25 : 0);
+            brightness,
+            parameter,
+            phase: presetName === 'goboCircle' && parameter === 'Tilt' ? 0.25 : 0
         });
     });
     return channels;
@@ -84,9 +72,17 @@ function updateOscillationStatus(message) {
     if (status) status.textContent = message;
     const stop = document.getElementById('oscillationStop');
     if (stop) stop.disabled = activeOscillationChannels.size === 0;
-    const opener = document.getElementById('oscillationButton');
-    if (opener) opener.textContent = activeOscillationChannels.size
-        ? `Oscillations · ${activeOscillationChannels.size}` : 'Oscillations';
+}
+
+function refreshOscillationSelection() {
+    const selection = document.getElementById('oscillationSelection');
+    const count = selectedChannels.size;
+    const parameters = new Set([...getOscillationTargets('breathe').values()].map(target => target.parameter).filter(Boolean));
+    if (selection) selection.textContent = count
+        ? `${count} slider${count === 1 ? '' : 's'} selected${parameters.size === 1 ? ` · ${[...parameters][0]}` : ''}`
+        : 'Select sliders to oscillate.';
+    const start = document.getElementById('oscillationStart');
+    if (start) start.disabled = count === 0;
 }
 
 function applyOscillationValue(idx, value) {
@@ -144,11 +140,11 @@ function startOscillations() {
         updateOscillationStatus('Choose a MIDI output in the menu before starting.');
         return;
     }
-    const targets = getOscillationTargets(presetName, document.getElementById('oscillationParameter').value);
+    const targets = getOscillationTargets(presetName);
     if (!targets.size) {
-        updateOscillationStatus(presetName === 'goboCircle' ? 'Select gobo fixtures for paired Pan/Tilt circles.'
-            : presetName === 'ledCircle' ? 'Select LED fixtures for the circle chase.'
-            : 'Select sliders, or lights with the chosen parameter.');
+        updateOscillationStatus(presetName === 'goboCircle' ? 'Select both Pan and Tilt sliders for each gobo.'
+            : presetName === 'ledCircle' ? 'Select LED shutter or dimmer sliders for the circle chase.'
+            : 'Select sliders before starting.');
         return;
     }
     const bases = new Map();
@@ -226,9 +222,7 @@ function loadOscillationPreset() {
     document.getElementById('oscillationPeriod').value = preset.period;
     document.getElementById('oscillationDepth').value = preset.depth;
     const name = document.getElementById('oscillationPreset').value;
-    document.getElementById('oscillationParameter').disabled = ['ledCircle', 'goboCircle'].includes(name);
     document.getElementById('oscillationWaveform').disabled = name === 'goboCircle';
-    if (!['ledCircle', 'goboCircle'].includes(name)) document.getElementById('oscillationParameter').value = 'brightness';
     refreshOscillationRouteHelp();
 }
 
@@ -240,40 +234,27 @@ function refreshOscillationRouteHelp() {
     const preset = document.getElementById('oscillationPreset').value;
     document.getElementById('oscillationRouteHelp').textContent = preset === 'ledCircle'
         ? currentMode === 'Black Box'
-            ? 'LED Circle follows row 2 → right → row 1 → left. The middle row stays unchanged.'
-            : 'LED Circle follows the selected LEDs in patch order.'
+            ? 'Selected LED brightness sliders: row 2 → right → row 1 → left; middle row excluded.'
+            : 'Selected LED brightness sliders follow patch order.'
         : preset === 'goboCircle'
-            ? 'Pan and tilt circle their starting positions. The radius stays within both axes’ limits.'
-            : 'Brightness dims below its starting level. Other sliders move above and below their starting value.';
+            ? 'Select Pan + Tilt. Double-click one axis, then Cmd/Ctrl-double-click the other.'
+            : 'Double-click a slider for its whole category. Cmd/Ctrl-double-click adds another parameter.';
 }
-
-function refreshOscillationParameters() {
-    const input = document.getElementById('oscillationParameter');
-    const previous = input.value;
-    const fixtures = getCurrentModeFixtures().filter(f => selectedFixtures.has(f.from));
-    const names = fixtures.map(f => (fixtureParameters[f.type] || []).map(p => p.name).filter(name => name && name !== '-'));
-    const common = names.length ? [...new Set(names[0])].filter(name => names.every(params => params.includes(name))) : [];
-    input.replaceChildren();
-    [['brightness', 'Brightness'], ...common.map(name => [name, name])].forEach(([value, label]) => {
-        const option = document.createElement('option');
-        option.value = value;
-        option.textContent = label;
-        input.appendChild(option);
-    });
-    input.value = [...input.options].some(option => option.value === previous) ? previous : 'brightness';
-}
-
-document.getElementById('oscillationButton').addEventListener('click', () => {
-    refreshOscillationParameters();
-    refreshOscillationRouteHelp();
-    document.getElementById('oscillationModal').showModal();
-});
 document.getElementById('oscillationPreset').addEventListener('change', loadOscillationPreset);
-document.getElementById('oscillationStart').addEventListener('click', startOscillations);
-document.getElementById('oscillationStop').addEventListener('click', () => stopOscillations());
-document.getElementById('oscillationClose').addEventListener('click', () => {
-    document.getElementById('oscillationModal').close();
+function focusSelectedSlider() {
+    document.activeElement.blur?.();
+    const channel = lastSelectedChannel || [...selectedChannels][0];
+    document.getElementById(`fader-${channel - 1}`)?.focus?.();
+}
+document.getElementById('oscillationStart').addEventListener('click', () => {
+    startOscillations();
+    focusSelectedSlider();
 });
+document.getElementById('oscillationStop').addEventListener('click', () => {
+    stopOscillations();
+    focusSelectedSlider();
+});
+document.addEventListener('DOMContentLoaded', refreshOscillationSelection);
 document.addEventListener('visibilitychange', () => {
     if (document.hidden && activeOscillationChannels.size) stopOscillations('Stopped and restored when the page became hidden.');
 });

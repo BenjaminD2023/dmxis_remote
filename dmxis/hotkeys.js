@@ -55,7 +55,7 @@ function cancelActiveFlash() {
 
 document.addEventListener('keydown', function(event) {
     const activeElement = document.activeElement;
-    if (activeElement.closest('.oscillation-modal')) return;
+    if (activeElement.closest('.oscillation-controls')) return;
     const isSlider = activeElement.classList.contains('fader');
     const isValueInput = activeElement.classList.contains('fader-value') && activeElement.classList.contains('editable');
     const isColorMenu = activeElement.closest('.color-modal');
